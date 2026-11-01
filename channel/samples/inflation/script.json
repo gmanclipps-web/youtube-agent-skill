@@ -1,0 +1,83 @@
+{
+  "topic": "inflation",
+  "title": "Zorb Learns Why $100 Buys Less Every Year",
+  "description": "Zorb, a very confused alien, finds out why Earth snacks cost more every year. Inflation means prices rise across the whole economy, and Earth's central bank actually aims for a little of it on purpose. Figures: U.S. Bureau of Labor Statistics CPI for the 12 months ending September 2026, and the Federal Reserve.\n\nEducation, not financial advice.\n\n#Shorts #inflation #personalfinance",
+  "tags": [
+    "inflation",
+    "what is inflation",
+    "inflation explained",
+    "CPI",
+    "Federal Reserve",
+    "2 percent inflation",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 60,
+  "beats": [
+    {
+      "line": "Your snacks cost more every year and nobody on Earth is surprised. Why?",
+      "scene": "shop",
+      "expression": "confused",
+      "props": {
+        "item": "SNACKS"
+      }
+    },
+    {
+      "line": "Same snack. Bigger number. Earthlings call this inflation.",
+      "scene": "calendar",
+      "expression": "confused",
+      "props": {}
+    },
+    {
+      "line": "Official Earth example: a basket that cost 100 dollars now costs 107. That is 7 percent.",
+      "scene": "price_tag",
+      "expression": "shocked",
+      "props": {
+        "from": "100",
+        "to": "107"
+      }
+    },
+    {
+      "line": "Same money. Smaller basket. Very sneaky, Earthlings.",
+      "scene": "shop",
+      "expression": "aha",
+      "props": {
+        "item": "BASKET",
+        "price": "$100"
+      }
+    },
+    {
+      "line": "In the latest 12 months, Earth prices rose 3.7 percent.",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "up",
+        "label": "+3.7%"
+      }
+    },
+    {
+      "line": "Twist: Earth's central bank wants inflation. Its goal is 2 percent a year.",
+      "scene": "vault",
+      "expression": "smug",
+      "props": {
+        "label": "THE FED"
+      }
+    },
+    {
+      "line": "Not zero. Two. On purpose. Zorb is still processing.",
+      "scene": "planet",
+      "expression": "confused",
+      "props": {
+        "label": "EARTH"
+      }
+    },
+    {
+      "line": "Zorb will return. Earth money remains confusing.",
+      "scene": "planet",
+      "expression": "smug",
+      "props": {}
+    }
+  ]
+}
