@@ -25,5 +25,52 @@
     "media_url": "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-01/inflation.mp4",
     "reason": "published manually on owner's request",
     "publish_at": "2026-11-01T11:10:00-05:00"
+  },
+  {
+    "topic": "compound_interest",
+    "title": "Zorb Learns How $730 of Pizza Became $3,155.02",
+    "scenes": [
+      "shop",
+      "money_stack",
+      "vault",
+      "price_tag",
+      "stock_chart",
+      "calendar",
+      "money_stack",
+      "planet"
+    ],
+    "hook_score": 70,
+    "checks": [
+      {
+        "name": "hook",
+        "ok": true,
+        "detail": "hook score 70 >= 55"
+      },
+      {
+        "name": "metadata",
+        "ok": true,
+        "detail": "disclaimer present, title length ok"
+      },
+      {
+        "name": "facts",
+        "ok": true,
+        "detail": "all numbers on fact sheet, no banned phrases"
+      },
+      {
+        "name": "variety",
+        "ok": true,
+        "detail": "title distinct from 1 videos (30 days), scenes distinct from last 1"
+      },
+      {
+        "name": "technical",
+        "ok": true,
+        "detail": "1080x1920, 50.64s, audio present, captions match speech"
+      }
+    ],
+    "status": "scheduled",
+    "planner_url": "https://app.metricool.com/planner/calendar?blogId=7783344&openWithPostUuid=-3018891473197186758",
+    "media_url": "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-01/compound_interest.mp4",
+    "reason": null,
+    "publish_at": "2026-11-01T11:55:00-05:00"
   }
 ]
