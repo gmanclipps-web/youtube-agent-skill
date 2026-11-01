@@ -1,0 +1,29 @@
+[
+  {
+    "topic": "inflation",
+    "title": "Zorb Learns Why $100 Buys Less Every Year",
+    "scenes": [
+      "shop",
+      "planet",
+      "price_tag",
+      "shop",
+      "calendar",
+      "vault",
+      "planet",
+      "planet"
+    ],
+    "hook_score": 60,
+    "checks": [
+      "hook",
+      "metadata",
+      "facts",
+      "variety",
+      "technical"
+    ],
+    "status": "scheduled",
+    "planner_url": "https://app.metricool.com/planner/calendar?blogId=7783344&openWithPostUuid=-4534348183374837559",
+    "media_url": "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-01/inflation.mp4",
+    "reason": "published manually on owner's request",
+    "publish_at": "2026-11-01T11:10:00-05:00"
+  }
+]
