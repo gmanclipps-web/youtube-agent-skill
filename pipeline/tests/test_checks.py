@@ -88,3 +88,93 @@ def test_facts_checks_numbers_in_props():
     assert not r.ok and "22" in r.detail
     s["beats"][0]["props"] = {"open": True}
     assert check_facts(s, "").ok
+
+
+# ---------------------------------------------------------------- metadata, number words
+
+from datetime import date  # noqa: E402
+
+from pipeline.checks import (expired_bullets, fact_bullets, number_words,  # noqa: E402
+                             text_numbers)
+
+
+def test_facts_digit_in_title_must_be_on_sheet():
+    r = check_facts(script(["Prices rose 2 percent."], title="Zorb Sees 9 Percent"),
+                    "Inflation was 2%.")
+    assert not r.ok and "9" in r.detail and "title" in r.detail
+
+
+def test_facts_digit_in_description_must_be_on_sheet():
+    r = check_facts(script(["Prices rose."], description=f"Since 1999. {DISC}"), "Inflation 2%.")
+    assert not r.ok and "1999" in r.detail
+    assert check_facts(script(["Prices rose."], description=f"Goal 2 percent. {DISC}"),
+                       "Inflation 2%.").ok
+
+
+def test_facts_digit_in_tag_must_be_on_sheet():
+    r = check_facts(script(["Prices rose."], tags=["inflation", "50 percent"]), "Inflation 2%.")
+    assert not r.ok and "50" in r.detail
+    assert check_facts(script(["Prices rose."], tags=["#Shorts", "inflation"]), "").ok
+
+
+def test_facts_number_word_in_spoken_line_must_be_on_sheet():
+    r = check_facts(script(["Prices doubled in twenty five years."]), "Prices rose 2%.")
+    assert not r.ok and "25" in r.detail
+    assert check_facts(script(["Not zero. Two."]), "The goal is 2 percent.").ok
+    assert check_facts(script(["One meter says so."]), "").ok     # "one" is ignored
+    r = check_facts(script(["Three hundred stores."]), "300 stores, 3 kinds")
+    assert r.ok, r.detail
+    assert not check_facts(script(["A million stores."]), "300 stores").ok
+
+
+def test_facts_banned_phrase_in_metadata():
+    assert not check_facts(script(["Hello."], title="Zorb: Guaranteed Money"), "").ok
+    assert not check_facts(script(["Hello."], description=f"Buy now! {DISC}"), "").ok
+    assert not check_facts(script(["Hello."], tags=["will crash"]), "").ok
+
+
+def test_number_words():
+    assert number_words("twenty five, twenty-five and ninety") == {"25", "90"}
+    assert number_words("One. two hundred and five; three thousand") == {"205", "3000"}
+    assert number_words("five two, ninety nine, twenty twelve") == {"5", "2", "99", "20", "12"}
+    assert number_words("half, double, twice, triple") == {"0.5", "2", "3"}
+    assert number_words("$1 billion and 16.7 trillion dollars") == set()   # digits carry it
+    assert number_words("a trillion, a hundred") == {"1000000000000", "100"}
+    assert number_words("one rule, one-time, someone, fifteen") == {"15"}
+    assert number_words("one hundred") == {"100"}
+    assert text_numbers("2 or two, 2026") == {"2", "2026"}
+
+
+# ---------------------------------------------------------------- freshness
+
+SHEET = ("# Rates\n\n"
+         "- The goal is 2 percent. (source: https://a.gov/x)\n"
+         "- In 2026 the range was 3.75 to 4 percent. (as of: 2026-10-28) (source: https://a.gov/y)\n"
+         "- Rates were 4 percent in 2007. (source: https://a.gov/z)\n")
+
+
+def test_fact_bullets_parse_as_of_marker():
+    bullets = fact_bullets(SHEET)
+    bullets = [b for b in bullets if b[0].startswith("-")]
+    assert [b[1] for b in bullets] == [None, date(2026, 10, 28), None]
+    assert "(as of" not in bullets[1][0]
+
+
+def test_expired_bullets_after_45_days():
+    assert expired_bullets(SHEET, date(2026, 12, 12)) == []          # day 45: still fresh
+    out = expired_bullets(SHEET, date(2026, 12, 13))
+    assert len(out) == 1 and "3.75" in out[0]
+
+
+def test_facts_reject_numbers_only_in_expired_bullets():
+    s = script(["The range is 3.75 to 4 percent."])
+    assert check_facts(s, SHEET, today=date(2026, 11, 1)).ok
+    assert check_facts(s, SHEET).ok                          # no date given: no expiry
+    r = check_facts(s, SHEET, today=date(2026, 12, 13))
+    assert not r.ok and "3.75" in r.detail and "expired" in r.detail
+    assert "4," not in r.detail and not r.detail.endswith(" 4")   # 4 is also in a live bullet
+    assert check_facts(script(["The goal is 2 percent."]), SHEET, today=date(2027, 6, 1)).ok
+
+
+def test_as_of_marker_date_is_not_a_sheet_number():
+    assert not check_facts(script(["Day 28 of month 10."]), SHEET).ok

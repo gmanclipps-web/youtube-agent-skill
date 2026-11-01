@@ -4,6 +4,7 @@ import math
 import re
 import subprocess
 from dataclasses import dataclass
+from datetime import date, timedelta
 from difflib import SequenceMatcher
 
 BANNED_PHRASES = ("you should buy", "guaranteed", "will go up", "will crash",
@@ -16,6 +17,18 @@ VIDEO_SIZE = (1080, 1920)
 MAX_DURATION = 59.0
 
 _NUM = re.compile(r"\d+(?:,\d{3})*(?:\.\d+)?")
+FRESH_DAYS = 45          # a bullet marked "(as of: YYYY-MM-DD)" expires this many days later
+_AS_OF = re.compile(r"\(as of:\s*(\d{4}-\d{2}-\d{2})\)", re.IGNORECASE)
+_BULLET_START = re.compile(r"^[ \t>]*(?:\d+[.)]|[-*+])[ \t]+")
+
+_UNITS = {w: i for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen "
+    "fourteen fifteen sixteen seventeen eighteen nineteen".split()) if i}
+_TENS = {w: 10 * i for i, w in enumerate(
+    "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()) if i > 1}
+_SCALES = {"thousand": 10 ** 3, "million": 10 ** 6, "billion": 10 ** 9, "trillion": 10 ** 12}
+_SPECIAL = {"half": "0.5", "double": "2", "doubles": "2", "doubled": "2", "doubling": "2",
+            "twice": "2", "triple": "3", "triples": "3", "tripled": "3", "tripling": "3"}
 
 
 @dataclass
@@ -42,11 +55,110 @@ def normalise_numbers(text: str) -> set:
     return {_plain_number(m) for m in _NUM.findall(text)}
 
 
-def _fact_numbers(facts_text: str) -> set:
-    """Numbers on a fact sheet, ignoring source URLs and markdown list markers."""
-    text = _URL.sub(" ", facts_text)
+def number_words(text: str) -> set:
+    """Numbers written as words, as digit strings: 'twenty five' -> '25',
+    'three thousand' -> '3000', 'half' -> '0.5', 'double'/'twice' -> '2'.
+
+    A lone "one" is ignored (too common: "one rule", "one-time"), but counts
+    inside a compound ("one hundred", "twenty one"). A scale word right after a
+    digit ("$1 billion", "16.7 trillion") adds nothing: the digit carries it."""
+    out = set()
+    total = current = 0
+    words = []          # number words in the group being read
+    prev_digit = False
+
+    def flush():
+        nonlocal total, current, words
+        if words and words != ["one"]:
+            out.add(str(total + current))
+        total = current = 0
+        words = []
+
+    for raw in re.split(r"[\s\-\u2010-\u2015]+", text.lower()):
+        tok = re.sub(r"[^a-z0-9.,]", "", raw).strip(".,")
+        ends = bool(re.search(r"[.,;:!?)\]]$", raw))
+        if tok in _UNITS or tok in _TENS:
+            val = _UNITS.get(tok) or _TENS[tok]
+            low = current % 100
+            fits = low == 0 or (tok in _UNITS and val < 10 and low >= 20 and low % 10 == 0)
+            if words and not fits:
+                flush()                               # "five two": two separate numbers
+            current += val
+            words.append(tok)
+        elif tok == "hundred" or tok in _SCALES:
+            scale = 100 if tok == "hundred" else _SCALES[tok]
+            if not words and prev_digit:
+                pass                                  # "$1 billion": digit already counted
+            elif tok == "hundred":
+                current = (current or 1) * 100
+                words.append(tok)
+            else:
+                total += (current or 1) * scale
+                current = 0
+                words.append(tok)
+        elif tok == "and" and words and words[-1] in ("hundred", *_SCALES) and not ends:
+            pass                                      # "two hundred and five"
+        else:
+            flush()
+            if tok in _SPECIAL:
+                out.add(_SPECIAL[tok])
+        prev_digit = bool(re.fullmatch(r"\$?\d[\d,]*(?:\.\d+)?%?", tok or "x"))
+        if ends:
+            flush()
+    flush()
+    return out
+
+
+def text_numbers(text: str) -> set:
+    """Every number in text, as digit strings: digits and number words."""
+    return normalise_numbers(text) | number_words(text)
+
+
+def fact_bullets(facts_text: str) -> list:
+    """[(text, as_of date or None)] for each bullet (and each other non-blank
+    line) of a fact sheet; the "(as of: ...)" marker is removed from text."""
+    blocks, cur = [], None
+    for line in facts_text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            cur = None
+            if line.strip():
+                blocks.append([line])
+            continue
+        if cur is None or _BULLET_START.match(line):
+            cur = [line]
+            blocks.append(cur)
+        else:
+            cur.append(line)
+    out = []
+    for b in blocks:
+        text = "\n".join(b)
+        m = _AS_OF.search(text)
+        as_of = date.fromisoformat(m.group(1)) if m else None
+        out.append((_AS_OF.sub(" ", text), as_of))
+    return out
+
+
+def is_expired(as_of, today) -> bool:
+    return as_of is not None and today is not None and today > as_of + timedelta(days=FRESH_DAYS)
+
+
+def expired_bullets(facts_text: str, today) -> list:
+    """Bullets whose "(as of: YYYY-MM-DD)" is more than FRESH_DAYS days before today."""
+    return [t.strip() for t, as_of in fact_bullets(facts_text) if is_expired(as_of, today)]
+
+
+def _numbers_of(text: str) -> set:
+    text = _URL.sub(" ", text)
     text = _LIST_MARKER.sub("", text)
-    return normalise_numbers(text)
+    return text_numbers(text)
+
+
+def _fact_numbers(facts_text: str, today=None) -> set:
+    """Numbers on a fact sheet (digits and number words), ignoring source URLs,
+    markdown list markers, "(as of: ...)" markers and, when today is given,
+    bullets that have expired."""
+    return set().union(*[_numbers_of(t) for t, as_of in fact_bullets(facts_text)
+                         if not is_expired(as_of, today)])
 
 
 def _spoken(script: dict) -> str:
@@ -77,20 +189,44 @@ def _props_text(script: dict) -> str:
     return " ".join(s for b in script["beats"] for s in _prop_strings(b.get("props", {})))
 
 
-def check_facts(script: dict, facts_text: str) -> CheckResult:
-    spoken = _spoken(script)
+def _metadata_parts(script: dict) -> list:
+    tags = script.get("tags") or []
+    return [("title", str(script.get("title", ""))),
+            ("description", str(script.get("description", ""))),
+            ("tags", " | ".join(str(t) for t in (tags if isinstance(tags, list) else [tags])))]
+
+
+def _sort_numbers(nums) -> list:
+    return sorted(nums, key=lambda n: (float(n), n))
+
+
+def check_facts(script: dict, facts_text: str, today=None) -> CheckResult:
+    """Every number (digits or number words) in the spoken lines, props, title,
+    description and tags must be on the fact sheet, in a bullet that has not
+    expired by `today` (a date; None = no expiry); no banned phrases anywhere."""
+    if isinstance(today, str):
+        today = date.fromisoformat(today)
+    parts = [("spoken", _spoken(script))] + _metadata_parts(script)
     problems = []
-    lowered = spoken.lower()
-    hits = [p for p in BANNED_PHRASES if p in lowered]
-    if hits:
-        problems.append("banned phrase: " + ", ".join(hits))
-    sheet = _fact_numbers(facts_text)
-    unknown = sorted(normalise_numbers(spoken) - sheet)
-    if unknown:
-        problems.append("numbers not in fact sheet: " + ", ".join(unknown))
-    on_screen = sorted(normalise_numbers(_props_text(script)) - sheet)
-    if on_screen:
-        problems.append("on screen (props) numbers not in fact sheet: " + ", ".join(on_screen))
+    for where, text in parts:
+        hits = [p for p in BANNED_PHRASES if p in text.lower()]
+        if hits:
+            problems.append(f"banned phrase in {where}: " + ", ".join(hits))
+    every = _fact_numbers(facts_text)
+    sheet = _fact_numbers(facts_text, today)
+    parts.insert(1, ("on screen (props)", _props_text(script)))
+    expired = set()
+    for where, text in parts:
+        nums = text_numbers(text)
+        unknown = nums - every
+        if unknown:
+            label = "numbers not in fact sheet" if where == "spoken" else \
+                f"{where} numbers not in fact sheet"
+            problems.append(f"{label}: " + ", ".join(_sort_numbers(unknown)))
+        expired |= (nums & every) - sheet
+    if expired:
+        problems.append(f"numbers only in expired fact-sheet bullets (as of more than "
+                        f"{FRESH_DAYS} days ago): " + ", ".join(_sort_numbers(expired)))
     if problems:
         return CheckResult("facts", False, "; ".join(problems))
     return CheckResult("facts", True, "all numbers on fact sheet, no banned phrases")
