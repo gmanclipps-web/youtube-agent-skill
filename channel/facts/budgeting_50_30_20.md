@@ -1,8 +1,9 @@
 # Budgeting: the 50/30/20 rule
 
-- The 50/30/20 budget splits household income into three buckets: 50 percent for needs, 30 percent for wants and 20 percent for savings. (source: https://employees.henrico.gov/county-connection/the-50-30-20-budget-rule-explained/)
-- Needs are things like housing, utilities, food, clothing, insurance and transportation. (source: https://employees.henrico.gov/county-connection/the-50-30-20-budget-rule-explained/)
-- Wants are things like entertainment, eating out, vacations and hobbies. (source: https://employees.henrico.gov/county-connection/the-50-30-20-budget-rule-explained/)
-- The savings bucket can include debt repayment, other than a home mortgage, which counts as housing under needs. (source: https://employees.henrico.gov/county-connection/the-50-30-20-budget-rule-explained/)
+- A budget is a plan for how to spend and save money. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_learning-about-budgets_guide.pdf)
+- The CFPB describes the 50-30-20 rule as one rule to live by: use 50 percent of your income for needs, 30 percent for wants and 20 percent for savings for financial goals. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_learning-about-budgets_guide.pdf)
+- Needs include rent or mortgage payments, groceries, utilities and transportation. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_learning-about-budgets_guide.pdf)
+- Wants include dining out, vacations and entertainment. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_learning-about-budgets_guide.pdf)
+- Savings includes emergency savings, paying down debt, and saving for education or retirement. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_learning-about-budgets_guide.pdf)
+- A budget should be built on net income, the money in your paycheck after taxes and other deductions, and not everyone can follow the 50-30-20 rule. (source: https://files.consumerfinance.gov/f/documents/cfpb_building_block_activities_analyzing-budgets_guide.pdf)
 - Building a budget starts with knowing your income, tracking where your money goes and listing your bills and when they are due. (source: https://www.consumerfinance.gov/about-us/blog/budgeting-how-to-create-a-budget-and-stick-with-it/)
-- Update your budget if your job or spending habits change. (source: https://www.consumerfinance.gov/about-us/blog/budgeting-how-to-create-a-budget-and-stick-with-it/)

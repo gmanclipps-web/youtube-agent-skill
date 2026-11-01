@@ -1,7 +1,7 @@
 {
   "topic": "inflation",
   "title": "Zorb Learns Why $100 Buys Less Every Year",
-  "description": "Zorb, a very confused alien, finds out why Earth snacks cost more every year. Inflation means prices rise across the whole economy, and Earth's central bank actually aims for a little of it on purpose. Figures: U.S. Bureau of Labor Statistics CPI for the 12 months ending September 2026, and the Federal Reserve.\n\nEducation, not financial advice.\n\n#Shorts #inflation #personalfinance",
+  "description": "Zorb, a very confused alien, finds out why Earth snacks cost more every year. Inflation means prices rise across the whole economy, and Earth's central bank actually aims for a little of it on purpose. Figures: U.S. Bureau of Labor Statistics CPI for the 12 months ending September 2026, and the Federal Reserve's 2 percent goal, which it measures with a different price index (PCE).\n\nEducation, not financial advice.\n\n#Shorts #inflation #personalfinance",
   "tags": [
     "inflation",
     "what is inflation",
@@ -26,9 +26,11 @@
     },
     {
       "line": "Same snack. Bigger number. Earthlings call this inflation.",
-      "scene": "calendar",
+      "scene": "planet",
       "expression": "confused",
-      "props": {}
+      "props": {
+        "label": "EARTH"
+      }
     },
     {
       "line": "Official Earth example: a basket that cost 100 dollars now costs 107. That is 7 percent.",
@@ -49,16 +51,15 @@
       }
     },
     {
-      "line": "In the latest 12 months, Earth prices rose 3.7 percent.",
-      "scene": "stock_chart",
+      "line": "One Earth price meter says prices rose 3.7 percent in 12 months.",
+      "scene": "calendar",
       "expression": "shocked",
       "props": {
-        "trend": "up",
-        "label": "+3.7%"
+        "start": "October"
       }
     },
     {
-      "line": "Twist: Earth's central bank wants inflation. Its goal is 2 percent a year.",
+      "line": "Twist: Earth's central bank wants inflation. On its own meter, the goal is 2 percent a year.",
       "scene": "vault",
       "expression": "smug",
       "props": {
@@ -66,7 +67,7 @@
       }
     },
     {
-      "line": "Not zero. Two. On purpose. Zorb is still processing.",
+      "line": "Not zero. Two. Zorb is still processing.",
       "scene": "planet",
       "expression": "confused",
       "props": {
