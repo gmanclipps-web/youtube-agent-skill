@@ -1,4 +1,4 @@
 Pillow
 numpy
-edge-tts
+edge-tts==7.3.1
 pytest
