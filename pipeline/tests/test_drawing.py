@@ -107,13 +107,32 @@ def test_scene_props_change_output(scene, props):
     assert (_arr(a) != _arr(b)).any()
 
 
+_NUM_KEYS = ("from", "to", "amount", "balance", "years", "apr")
+
+
 @pytest.mark.parametrize("scene", SCENES)
-def test_scene_tolerates_junk_props(scene):
+@pytest.mark.parametrize("junk", [
+    {"from": None, "to": "abc", "trend": 5, "amount": [], "years": "lots",
+     "apr": None, "label": 7, "item": None, "price": {}},
+    {k: 1e-05 for k in _NUM_KEYS},
+    {k: 1e400 for k in _NUM_KEYS},
+    {k: "9" * 400 for k in _NUM_KEYS},
+    {k: 1e300 for k in _NUM_KEYS},
+    {k: float("nan") for k in _NUM_KEYS},
+], ids=["mixed", "tiny", "inf", "longdigits", "huge", "nan"])
+def test_scene_tolerates_junk_props(scene, junk):
     pal = scenes.palette("x")
     img = _blank(pal["bg"])
-    junk = {"from": None, "to": "abc", "trend": 5, "amount": [], "years": "lots",
-            "apr": None, "label": 7, "item": None, "price": {}}
     scenes.SCENE_PAINTERS[scene](img, junk, 0.5, pal)
+
+
+@pytest.mark.parametrize("scene", SCENES)
+def test_scene_nan_progress_treated_as_zero(scene):
+    pal = scenes.palette("x")
+    a, b = _blank(pal["bg"]), _blank(pal["bg"])
+    scenes.SCENE_PAINTERS[scene](a, {}, float("nan"), pal)
+    scenes.SCENE_PAINTERS[scene](b, {}, 0.0, pal)
+    assert (_arr(a) == _arr(b)).all()
 
 
 def test_palette_deterministic_and_topic_specific():

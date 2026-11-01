@@ -104,15 +104,19 @@ def _num(v, default):
     if isinstance(v, str):
         s = re.sub(r"[^0-9.\-]", "", v)
         try:
-            return float(s)
+            f = float(s)
         except ValueError:
             return default
+        return f if math.isfinite(f) else default
     return default
 
 
 def _decimals(v):
-    if isinstance(v, float) and not v.is_integer():
-        return min(2, len(repr(v).split(".")[1]))
+    if isinstance(v, float):
+        if not math.isfinite(v):
+            return 0
+        frac = f"{v:.10f}".rstrip("0").split(".")[1]
+        return min(2, len(frac))
     if isinstance(v, str) and "." in v:
         return min(2, len(re.sub(r"[^0-9]", "", v.split(".", 1)[1])))
     return 0
@@ -135,6 +139,8 @@ def _fmt(x, decimals):
 # ---------------------------------------------------------------- easing
 
 def _clamp(t, lo=0.0, hi=1.0):
+    if not math.isfinite(t):
+        return lo
     return lo if t < lo else hi if t > hi else t
 
 
@@ -272,9 +278,10 @@ def _scene(fn):
     def painter(img, props, progress, pal):
         props = props if isinstance(props, dict) else {}
         try:
-            p = _clamp(float(progress))
+            p = float(progress)
         except (TypeError, ValueError):
             p = 0.0
+        p = _clamp(p) if math.isfinite(p) else 0.0
         layer = _background(tuple(pal["bg"]), tuple(pal["fg"])).copy()
         pen = Pen(ImageDraw.Draw(layer), SS)
         fn(pen, props, p, pal, layer)
@@ -565,8 +572,8 @@ def credit_card(pen, props, p, pal, layer):
     ``balance`` (final balance, default "500"), ``currency`` (default "$").
     """
     apr_v = props.get("apr")
-    if isinstance(apr_v, (int, float)) and not isinstance(apr_v, bool):
-        apr = f"{apr_v:g}%"
+    if _num(apr_v, None) is not None and not isinstance(apr_v, str):
+        apr = f"{apr_v:g}%"[:6]
     else:
         apr = _text(apr_v, "22%", 6)
     bal = _num(props.get("balance"), 500.0)
