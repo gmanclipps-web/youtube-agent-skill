@@ -23,6 +23,9 @@ def load_script(path: str) -> dict:
             raise ValueError(f"field {key} must be a string")
     if not isinstance(script["tags"], list):
         raise ValueError("field tags must be a list")
+    for i, tag in enumerate(script["tags"]):
+        if not isinstance(tag, str) or not tag.strip():
+            raise ValueError(f"tags[{i}] must be a non-empty string")
     if not _is_number(script["hook_score"]):
         raise ValueError("field hook_score must be a number")
     beats = script["beats"]

@@ -59,3 +59,10 @@ def test_load_script_bad_props_and_hook_score(tmp_path):
 def test_constants():
     assert len(SCENES) == 8 and "shop" in SCENES
     assert EXPRESSIONS == ("neutral", "confused", "shocked", "aha", "smug")
+
+
+def test_load_script_tags_must_be_non_empty_strings(tmp_path):
+    for bad in (["ok", ""], ["ok", 5], ["ok", None], ["   "], "inflation"):
+        with pytest.raises(ValueError, match="tags"):
+            load_script(_write(tmp_path, _script(tags=bad)))
+    assert load_script(_write(tmp_path, _script(tags=["a", "b c"])))["tags"] == ["a", "b c"]
