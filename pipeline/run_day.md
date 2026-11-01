@@ -4,7 +4,12 @@ You are an unattended Claude Code session. Nobody will answer questions. Follow 
 top to bottom, exactly. **When anything is unclear, skip that topic and log why. Never guess.**
 
 Repo: `gmanclipps-web/youtube-agent-skill`. Work branch: `claude/quirky-cannon-xc1vyz`.
-All commands run from the repo root unless a step says otherwise.
+Run every command from the repo root (`/home/user/youtube-agent-skill` or wherever the repo is
+checked out; `cd` there at the start of every Bash call if unsure).
+
+**Shell state does not persist between Bash calls.** Words in CAPS such as `TODAY`,
+`YESTERDAY`, `PER_DAY`, and `<topic>`, are placeholders: type their literal values into each
+command (e.g. `2026-11-02`, `stocks`). Never rely on a shell variable set in an earlier call.
 
 ## 0. Hard rules (read before doing anything)
 
@@ -12,7 +17,8 @@ All commands run from the repo root unless a step says otherwise.
    `video.mp4` is missing.
 2. Never edit anything under `pipeline/` or `skills/`, never weaken a check, never change
    `channel/config.json` or `channel/topics.json`. If the code seems broken, log it and stop.
-3. Never delete or rewrite an existing log entry. Logs are append-only.
+3. Never delete or rewrite an existing log entry. Logs are append-only, and you only ever add to
+   them with `python3 -m pipeline.media log` (step L).
 4. Never invent a number, a fact or a source. Never cite a page you did not read in this session
    or that is not already on the fact sheet.
 5. Content is education only: never recommend a specific stock, fund, coin or other security,
@@ -21,9 +27,11 @@ All commands run from the repo root unless a step says otherwise.
    anyone what to do. If a fact-sheet bullet sounds like advice, use it only descriptively
    ("Earth guides say many people keep...") or not at all.
 6. Do not call any Metricool tool other than `createScheduledPost`. Never call it twice for the
-   same topic. After any Metricool error, schedule nothing more today.
-7. The `media` branch only ever holds the mp4 files described in step 5. Never put anything else
-   there, and never force-push any other branch.
+   same topic. After any Metricool error, schedule nothing more today, and if today's log
+   already holds a Metricool error, schedule nothing at all today.
+7. Only `python3 -m pipeline.media upload` writes to the `media` branch. Never touch that
+   branch with other git commands, never force-push any branch, never run `git rm`, `git clean`,
+   `git reset --hard` or `rm -rf` inside the repo checkout.
 8. Use the timezone `America/New_York` for every date in this file ("today" = the New York date).
 
 ## Dry run
@@ -34,8 +42,9 @@ these differences:
 - use `PER_DAY=1` instead of `per_day` from the config (step 1); do not edit the config,
 - in step 6 send `"draft": true` instead of `"draft": false` (everything else identical),
 - when the draft was created, log it with `"status": "skipped"` (a draft is not a published
-  video, so the topic stays eligible for real runs), `"reason": "dry run: draft only"`, and
-  still fill `planner_url`, `media_url` and `publish_at`.
+  video, so the topic stays eligible for real runs and its slot stays free),
+  `"reason": "dry run: draft only"`, `"title": null`, `"scenes": []`, and still fill
+  `planner_url`, `media_url` and `publish_at`.
 
 A dry run still commits and pushes its log, script and media like a real run. Say "DRY RUN"
 at the start of the final summary.
@@ -47,20 +56,64 @@ git status --short --branch          # must be on claude/quirky-cannon-xc1vyz
 git pull --ff-only origin claude/quirky-cannon-xc1vyz
 pip install -q -r pipeline/requirements.txt
 cat channel/config.json
-python3 -m pipeline.media today      # {"date": "YYYY-MM-DD", "weekday": ..., "monday": ...}
+python3 -m pipeline.media today --log-dir channel/log
 ```
+
+The last command prints e.g. `{"date": "2026-11-02", "weekday": "Monday", "monday": true,
+"yesterday": "2026-11-01", "scheduled_today": 0, "metricool_error_today": false}`.
 
 - If you are not on `claude/quirky-cannon-xc1vyz`, run `git checkout claude/quirky-cannon-xc1vyz`.
   If that fails, stop (nothing to log against; report it in the summary).
-- If `pip install` fails, retry once; if it still fails, log one entry
-  (`"topic": null`, `"status": "error"`, `"reason"` = the pip error's last line), do step 7, stop.
-- Remember `TODAY` = the `date` printed above and `MONDAY` = the `monday` flag.
+- If `pip install` fails, retry once; if it still fails, log one entry (step L:
+  `"topic": null`, `"status": "error"`, `"reason"` = the pip error's last line), push (step 7), stop.
+- Note `TODAY` = `date`, `YESTERDAY` = `yesterday`.
   `PER_DAY` = `per_day` from `channel/config.json` (1 in a dry run).
-- The log file is `channel/log/TODAY.json`. If it exists, read it: it is a JSON list. Count its
-  entries with `"status": "scheduled"`; if that count is already `>= PER_DAY`, today is done
-  (a rerun): write nothing, finish with the summary.
-  Otherwise `REMAINING` = `PER_DAY` minus that count (normally `REMAINING` = `PER_DAY`).
-- Work directory for build files: `/tmp/zorb/TODAY/<topic>/` (not committed).
+- If `metricool_error_today` is true: a Metricool error already happened today. Schedule
+  nothing; finish with the summary (step 8).
+- If `scheduled_today >= PER_DAY`, today is done (a rerun): write nothing, finish with the summary.
+  Otherwise `REMAINING` = `PER_DAY` minus `scheduled_today` (normally `REMAINING` = `PER_DAY`).
+- Work directory for build files: `/tmp/zorb/TODAY/<topic>/` (not committed). Create it with
+  `mkdir -p /tmp/zorb/TODAY/<topic>` before writing anything there.
+
+## L. Logging (used by every later step)
+
+Each attempted topic gets exactly one log entry, written **the moment its outcome is known**
+(skipped, error, or scheduled), never batched at the end. Write the entry to
+`/tmp/zorb/TODAY/<topic>/entry.json` (`/tmp/zorb/TODAY/none-entry.json` when there is no topic):
+
+```json
+{
+  "topic": "<topic id, or null>",
+  "title": "<script title if status is scheduled, else null>",
+  "scenes": ["<scene of each beat, in order, if status is scheduled; else this list is empty>"],
+  "hook_score": 60,
+  "checks": [{"name": "hook", "ok": true, "detail": "..."}],
+  "status": "scheduled | skipped | error",
+  "planner_url": "<plannerUrl, or null>",
+  "media_url": "<raw URL, or null>",
+  "reason": "<why skipped / error text, or null>",
+  "publish_at": "<slot date with offset, or null>"
+}
+```
+
+- Exactly these 10 keys. `checks` = the `checks` list of the last `report.json` for that
+  topic (`[]` if never built). `hook_score` = the script's score, or null if none.
+- Only `scheduled` entries carry `title` and `scenes`: the build's variety check reads every
+  log entry that has a title and scenes, so this keeps unpublished scripts from constraining
+  later videos. (The script itself is kept under `channel/scripts/`.)
+- A Metricool failure's `reason` starts with `metricool: ` followed by the error text verbatim.
+
+Append and commit it at once:
+
+```bash
+python3 -m pipeline.media log TODAY /tmp/zorb/TODAY/<topic>/entry.json
+git add channel/log/TODAY.json
+if [ -d channel/scripts/TODAY ]; then git add channel/scripts/TODAY; fi
+git commit -q -m "log: TODAY <topic> <status>"
+```
+
+If `pipeline.media log` refuses the entry, fix the entry file (never the log) and run it again.
+The log is pushed in step 7 (and also right after every `scheduled` entry, see step 6).
 
 ## 2. Choose topics
 
@@ -101,21 +154,22 @@ PY
 
 - A topic is "used" when a log entry for it has `"status": "scheduled"`. Never-used topics come
   first, then the ones used longest ago; topics tried and skipped recently go later.
-- If the list is empty: append one entry `{"topic": null, "status": "skipped",
-  "reason": "no eligible topics", ...}` (all other fields null / empty, see step 7), do step 7, stop.
+- If the list is empty: log one entry (step L) with `"topic": null`, `"status": "skipped"`,
+  `"reason": "no eligible topics"` (other fields null / `[]`), do step 7, stop.
 - Work through the list in order, one topic at a time (steps 3-6), then the next. Stop when
-  `REMAINING` topics are scheduled, when you have attempted `REMAINING + 2` topics, or when
-  the list runs out. Each attempted topic gets exactly
-  one log entry.
+  `REMAINING` topics are scheduled, when you have attempted `REMAINING + 2` topics, when a
+  Metricool error happened, or when the list runs out. Each attempted topic gets exactly one
+  log entry (step L).
 
 ## 3. For each topic: check the fact sheet
 
 Read `channel/facts/<topic>.md` in full. Each bullet ends with `(source: URL)`.
 
 **Freshness.** For every bullet that states a calendar date (e.g. "release of October 14, 2026",
-"12 months ending September 2026", "as of 2026"), take the most recent date it states (a month
-counts as its last day, a bare year as December 31). If that date is more than 45 days before
-TODAY, the bullet is **stale**: do not use any of its numbers in the script or props.
+"12 months ending September 2026", "in 2026"), take the most recent date it states. A full date
+counts as itself, a month as the **last** day of that month, a bare year as **January 1** of
+that year. If that date is more than 45 days before TODAY, the bullet is **stale**: do not use
+any of its numbers in the script, props, title, description or tags.
 Bullets without dates (definitions, rules, fixed examples) are fine.
 
 You may refresh a stale bullet, only like this:
@@ -129,7 +183,7 @@ You may refresh a stale bullet, only like this:
 If the fetch fails or the page does not state the figure clearly, leave the sheet unchanged and
 just avoid that bullet. Never add a bullet from a source you did not read. If fewer than two
 non-stale bullets with something concrete to say remain, skip the topic
-(`"reason": "fact sheet stale"`).
+(log it per step L: `"status": "skipped"`, `"reason": "fact sheet stale"`).
 
 ## 4. For each topic: write the script, then build
 
@@ -145,10 +199,10 @@ Copy the shape of `channel/samples/inflation/script.json` (read it now; it passe
 - The last beat's line is exactly: `Zorb will return. Earth money remains confusing.`
   (scene `planet`, expression `smug`, props `{}`).
 - At least 4 distinct scenes, and the scene sequence must not copy any recent video's
-  sequence (the build checks this against the last 10 logged videos).
+  sequence (the build checks this against the last 10 scheduled videos in the logs).
 - Scenes: `shop, price_tag, vault, stock_chart, credit_card, planet, calendar, money_stack`.
   Expressions: `neutral, confused, shocked, aha, smug`. Vary the expressions.
-- **Every number** spoken in a line, in a prop or in the title must appear on the topic's fact
+- **Every number** spoken in a line, in a prop, in the title, description or tags must appear on the topic's fact
   sheet (in a non-stale bullet). Write numbers as digits ("7 percent", "100 dollars") so the
   checker can match them. Years, ages and counts are numbers too ("15 years" needs a 15 on the
   sheet). If you are unsure a number is there, leave it out.
@@ -184,7 +238,7 @@ python3 skills/yt-script/hookscore.py --json --hook "<hook option>"
 
 Use the one with the highest `verdict` as beat 1's `line`, word for word, and put that
 `verdict` (an integer) in `hook_score`. It must be `>= 55`. If none reaches 55, write five
-more; if still none, skip the topic (`"reason": "no hook >= 55"`). Never type a score you did
+more; if still none, skip the topic (step L: `"status": "skipped"`, `"reason": "no hook >= 55"`). Never type a score you did
 not get from the tool.
 
 ### 4d. Title, description, tags (skills/yt-package/SKILL.md)
@@ -196,7 +250,7 @@ not get from the tool.
 - Description: 2-3 plain sentences (what Zorb discovers; name the source organisation of the
   figures), then a blank line, then exactly `Education, not financial advice.`, then a blank
   line, then 3 hashtags on one line, the first being `#Shorts` (e.g.
-  `#Shorts #inflation #personalfinance`). No links, no advice.
+  `#Shorts #inflation #personalfinance`). No links, no advice, no digits in hashtags.
 - Tags: 5-10 short search phrases (topic name, "<topic> explained", "personal finance",
   "money basics", "Zorb", "cartoon alien" ...).
 
@@ -204,125 +258,93 @@ not get from the tool.
 
 Write the script to `/tmp/zorb/TODAY/<topic>/script.json` with the fields
 `topic, title, description, tags, hook_score, beats` (each beat: `line, scene, expression, props`).
-Count the words:
+Then run both checks:
 
 ```bash
 python3 -c "import json,sys; s=json.load(open(sys.argv[1])); print(sum(len(b['line'].split()) for b in s['beats']), len(s['beats']), len({b['scene'] for b in s['beats']}))" /tmp/zorb/TODAY/<topic>/script.json
+python3 -m pipeline.media numbers /tmp/zorb/TODAY/<topic>/script.json channel/facts/<topic>.md
 ```
 
-Must print words 75-120, beats 6-9, distinct scenes >= 4; fix the script until it does.
+The first must print words 75-120, beats 6-9, distinct scenes >= 4. The second must print `ok`
+(it lists any number in the title, description or tags that is not on the sheet; remove or fix
+those). Fix the script until both pass; these fixes do not count as rewrites.
+
+Then save a copy: `mkdir -p channel/scripts/TODAY && cp /tmp/zorb/TODAY/<topic>/script.json
+channel/scripts/TODAY/<topic>.json` (repeat the copy after every rewrite, so the committed copy
+is the script you last built).
 
 ### 4f. Build
 
 ```bash
-python3 -m pipeline.build /tmp/zorb/TODAY/<topic>/script.json /tmp/zorb/TODAY/<topic>/out \
-  --recent channel/log --facts channel/facts
+python3 -m pipeline.build /tmp/zorb/TODAY/<topic>/script.json /tmp/zorb/TODAY/<topic>/out --recent channel/log --facts channel/facts
 cat /tmp/zorb/TODAY/<topic>/out/report.json
 ```
 
 Read `report.json` (`ok`, `checks`, `duration`, `scenes`, `error`):
 
-- `ok: true` and `out/video.mp4` exists: go to step 5.
+- `ok: true` and `/tmp/zorb/TODAY/<topic>/out/video.mp4` exists: go to step 5.
 - `error` starts with `voice failed` (e.g. "No audio was received"): wait 30 s and build again.
-  At most 3 builds in total for voice failures; after the third, skip the topic
-  (`"status": "error"`, `"reason"` = the error text).
+  At most 3 builds in total for voice failures; after the third, log it (step L:
+  `"status": "error"`, `"reason"` = the error text) and go to the next topic.
 - `error` is `content checks failed; not voiced` or `technical check failed`: read the failing
   checks' `detail`, rewrite the script to fix exactly that (remove an unknown number, shorten a
-  script that runs over 59 s, change a title too similar to a recent one, reorder scenes...) and
-  build again. At most 2 rewrites; then skip the topic (`"status": "skipped"`,
-  `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ").
-  Never "fix" a check by editing pipeline code, the fact sheet's numbers or the logs.
+  script that runs over 59 s, change a title too similar to a recent one, reorder scenes...),
+  redo 4e and build again. At most 2 rewrites; then log it (step L: `"status": "skipped"`,
+  `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ") and go to
+  the next topic. Never "fix" a check by editing pipeline code, the fact sheet's numbers or the logs.
 - `error` starts with `bad script`, `render failed` or `build failed`: fix an obviously malformed
-  script.json once; otherwise skip the topic (`"status": "error"`, `"reason"` = the error text).
-
-Copy the final script you built (passed or not) to `channel/scripts/TODAY/<topic>.json`.
+  script.json once; otherwise log it (step L: `"status": "error"`, `"reason"` = the error text)
+  and go to the next topic.
 
 ## 5. Host the mp4 on the `media` branch
 
-Only for a topic whose report has `ok: true`. Use a separate worktree so the main checkout
-never leaves `claude/quirky-cannon-xc1vyz`.
+Only for a topic whose report has `ok: true`. One command does everything:
 
 ```bash
-W=/tmp/zorb/media-wt
-V=/tmp/zorb/TODAY/<topic>/out/video.mp4
-git worktree remove --force "$W" 2>/dev/null; rm -rf "$W"; git worktree prune
-git branch -D media 2>/dev/null
-git fetch origin media 2>/dev/null && HAVE_MEDIA=1 || HAVE_MEDIA=0
+python3 -m pipeline.media upload TODAY <topic> /tmp/zorb/TODAY/<topic>/out/video.mp4
 ```
 
-**Fresh branch** — if `HAVE_MEDIA=0`, or if `MONDAY` is true and this is the first upload of
-this session (do this at most once per session):
+It commits the file as `media/TODAY/<topic>.mp4` on origin's orphan `media` branch with git
+plumbing and a throwaway index (your checkout, branch and files are not touched), pushes with
+retries (2, 4, 8, 16 s), and prints the raw URL. On a Monday's first upload it restarts the
+branch from scratch, keeping only yesterday's and today's folders (posts that may not have
+published yet). Re-running it with the same file is harmless.
+
+If it exits non-zero: if the message says `rejected` (someone else pushed meanwhile), run the
+same command once more. Otherwise, or if it fails again, log it (step L: `"status": "error"`,
+`"reason"` = the printed error) and go to the next topic.
+
+Then check the URL really serves this file:
 
 ```bash
-git worktree add --detach "$W" HEAD
-cd "$W"
-git checkout --orphan media
-git rm -rfq . && git clean -fdxq
-# keep folders of posts that may still be pending (only if the remote branch exists):
-for d in YESTERDAY TODAY; do git checkout origin/media -- "media/$d" 2>/dev/null || true; done
+python3 -m pipeline.media verify TODAY <topic> /tmp/zorb/TODAY/<topic>/out/video.mp4
 ```
 
-(`YESTERDAY` = the New York date before TODAY.) The Monday reset keeps the media small; the two
-kept folders protect posts scheduled yesterday or earlier today that may not have published yet.
+It retries for about a minute and prints `ok 200 <bytes>`. If it exits non-zero, do not
+schedule: log it (step L: `"status": "error"`, `"reason"` = the printed error, `"media_url"` =
+the URL) and go to the next topic.
 
-**Existing branch** — otherwise:
-
-```bash
-git worktree add -B media "$W" origin/media
-cd "$W"
-```
-
-Then, in both cases:
-
-```bash
-mkdir -p media/TODAY
-cp "$V" media/TODAY/<topic>.mp4
-git add media/TODAY/<topic>.mp4
-git commit -q -m "media: TODAY <topic>"
-```
-
-Push with up to 4 retries on network errors, waiting 2 s, 4 s, 8 s, 16 s between tries:
-
-```bash
-git push -u origin media            # existing branch
-git push -u --force origin media    # fresh branch only (this is the ONLY force push allowed)
-```
-
-If the push is rejected as non-fast-forward (another run pushed meanwhile), redo step 5 from the
-top once. If it still fails, skip the topic (`"status": "error"`, `"reason"` = the git error).
-Then go back: `cd <repo root>` and `git worktree remove --force "$W"`.
-`git status --short --branch` must again show `claude/quirky-cannon-xc1vyz`.
-
-**Verify the URL** before scheduling:
-
-```bash
-URL=$(python3 -m pipeline.media url TODAY <topic>)
-SIZE=$(stat -c %s "$V")
-curl -sSI "$URL" | tr -d '\r' | grep -iE '^(HTTP|content-length)'
-```
-
-Needs `HTTP/2 200` (or `HTTP/1.1 200`) and `content-length` equal to `$SIZE`. If not, wait 15 s
-and try again, up to 5 times. Still wrong: do not schedule; log `"status": "error"`,
-`"reason": "media URL not served: <status> <length> vs <SIZE>"`, and move on to the next topic.
+`git status --short --branch` must still show `claude/quirky-cannon-xc1vyz`.
 
 ## 6. Schedule with Metricool
 
 Load the tool first (its schema is deferred):
 `ToolSearch` with query `select:mcp__Metricool_Social_Media_Management__createScheduledPost`.
-If the tool is not available, log `"status": "error"`, `"reason": "Metricool tool unavailable"`,
-and schedule nothing today.
+If the tool is not available, log it (step L: `"status": "error"`,
+`"reason": "metricool: tool unavailable"`) and schedule nothing today.
 
-Get the slot times once per session:
+Pick the slot for **this** topic right before calling the tool:
 
 ```bash
-python3 -m pipeline.media slots --per-day <PER_DAY>
+python3 -m pipeline.media slots --per-day 1
 ```
 
-It prints one object per slot (`date` with UTC offset, `publicationDate`). Slots already past or
-less than 20 minutes away are moved to the same time tomorrow. Give the topics, in the order
-they get scheduled, the slots in order, skipping any slot whose `date` already appears as
-`publish_at` of a `scheduled` entry in today's log (a rerun). If no slot is left, do not
-schedule: log `"status": "skipped"`, `"reason": "no free slot"` and stop.
+It prints a list with one slot object (`date` with UTC offset, `publicationDate`). It takes the
+configured slots in order (a slot already past or less than 20 minutes away moves to the same
+time tomorrow) and skips every slot already booked by a `scheduled` entry in today's or
+yesterday's log, so each topic gets its own slot and a rerun never double-books. If it prints
+`[]`, log the topic (step L: `"status": "skipped"`, `"reason": "no free slot"`) and stop
+scheduling.
 
 Call `createScheduledPost` with these arguments (fill `<...>` from the script and the slot;
 `info` is a JSON **string**, so serialise this object with proper escaping of quotes and
@@ -335,7 +357,7 @@ newlines in the description):
   "info": {
     "providers": [{"network": "youtube"}],
     "text": "<script.description, exactly>",
-    "media": ["<URL from step 5>"],
+    "media": ["<raw URL printed by the upload in step 5>"],
     "publicationDate": {"dateTime": "<slot.publicationDate.dateTime, e.g. 2026-11-02T08:00:00>",
                         "timezone": "America/New_York"},
     "autoPublish": true,
@@ -361,46 +383,28 @@ newlines in the description):
 
 (Dry run: `"draft": true`.) Do not add any other field (no thumbnail fields).
 
-- Success: the response contains a `plannerUrl`; record it as `planner_url` and the slot's
-  `date` as `publish_at`; status `scheduled`.
-- Any error, or a response without a `plannerUrl`: status `error`, `reason` = the error text
-  verbatim (or the full response if there is no error text). **Do not retry, do not start
-  another topic, and schedule nothing more today**; go to step 7.
+- Success: the response contains a `plannerUrl`. **Immediately** log it (step L:
+  `"status": "scheduled"`, `title`, `scenes`, `planner_url`, `media_url`, `publish_at` = the
+  slot's `date`), commit, and push (step 7's push command), before doing anything else. This
+  is what stops a crashed-and-restarted run from scheduling the same video twice.
+- Any error, or a response without a `plannerUrl`: log it (step L: `"status": "error"`,
+  `"reason"` = `metricool: ` + the error text verbatim, or the full response if there is no
+  error text). **Do not retry, do not start another topic, and schedule nothing more today**;
+  go to step 7.
 
-## 7. Log, commit, push
-
-Append one entry per attempted topic to `channel/log/TODAY.json` (create it as `[]` if missing;
-keep existing entries untouched; write valid JSON, 2-space indent):
-
-```json
-{
-  "topic": "<topic id or null>",
-  "title": "<script title or null>",
-  "scenes": ["<scene of each beat, in order>"],
-  "hook_score": 60,
-  "checks": [{"name": "hook", "ok": true, "detail": "..."}],
-  "status": "scheduled | skipped | error",
-  "planner_url": "<plannerUrl or null>",
-  "media_url": "<raw URL or null>",
-  "reason": "<why skipped / error text, or null>",
-  "publish_at": "<slot date with offset, or null>"
-}
-```
-
-`checks` = the `checks` list of the last `report.json` for that topic (`[]` if never built).
-Use `[]` for `scenes` and `null` for `title`/`hook_score` when no script exists.
-Only `scheduled` entries' titles and scenes matter for variety, but log them all honestly.
+## 7. Push
 
 ```bash
 python3 -c "import json; json.load(open('channel/log/TODAY.json'))"   # must not fail
-git add channel/log/TODAY.json channel/scripts/TODAY/
-git commit -m "run: TODAY (<n> scheduled)"
+git status --short          # everything from today should already be committed (step L)
 git push -u origin claude/quirky-cannon-xc1vyz
 ```
 
-Push retries: up to 4 on network errors, waiting 2 s, 4 s, 8 s, 16 s. If rejected as
-non-fast-forward, `git pull --rebase origin claude/quirky-cannon-xc1vyz` once and push again.
-Never force-push this branch.
+If `git status` shows uncommitted files under `channel/log/` or `channel/scripts/`, add and
+commit them (`git add channel/log/TODAY.json`, and `channel/scripts/TODAY` only if that
+directory exists). Push retries: up to 4 on network errors, waiting 2 s, 4 s, 8 s, 16 s.
+If rejected as non-fast-forward, `git pull --rebase origin claude/quirky-cannon-xc1vyz` once and
+push again. Never force-push this branch.
 
 ## 8. Finish
 
