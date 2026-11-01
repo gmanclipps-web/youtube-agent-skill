@@ -319,3 +319,33 @@ def test_build_unexpected_error_reports(tmp_path, monkeypatch):
     rep = json.loads((out / "report.json").read_text())
     assert rep["ok"] is False and rep["error"] == "build failed: KeyError('scene')"
     assert not (out / "video.mp4").exists()
+
+
+def test_build_rejects_numbers_only_in_expired_bullets(tmp_path, monkeypatch):
+    calls = _no_voice(monkeypatch)
+    sheet = ("- Snacks went from 1 to 1.50. (as of: 2026-01-01) (source: https://a.gov/x)\n"
+             "- A snack is 1 item. (source: https://a.gov/y)\n")
+    sp, fd = _setup(tmp_path, facts=sheet)
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd), "--today", "2026-11-01"]) == 1
+    assert calls == []
+    facts = [c for c in json.loads((out / "report.json").read_text())["checks"]
+             if c["name"] == "facts"][0]
+    assert not facts["ok"] and "expired" in facts["detail"] and "1.5" in facts["detail"]
+    checks = build.content_checks(json.loads(sp.read_text()), fd, None, today="2026-01-15")
+    assert [c for c in checks if c.name == "facts"][0].ok
+
+
+def test_build_default_today_is_new_york_date(tmp_path, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from pipeline import media
+    # 03:00 UTC on Nov 2 is still Nov 1 in New York
+    fixed = datetime(2026, 11, 2, 3, 0, tzinfo=ZoneInfo("UTC"))
+    monkeypatch.setattr(media, "_now", lambda now, tz: fixed.astimezone(ZoneInfo(tz)))
+    assert build.today_ny() == "2026-11-01"
+    log = tmp_path / "log"
+    log.mkdir()
+    (log / "2026-10-02.json").write_text(json.dumps([{"title": "Edge", "scenes": ["shop"]}]))
+    titles, _ = build.load_recent(log)
+    assert [e["title"] for e in titles] == ["Edge"]   # 30 days before Nov 1, not Nov 2

@@ -1,9 +1,12 @@
 """CLI: script.json -> video.mp4 + report.json.
 
     python3 -m pipeline.build <script.json> <outdir> [--recent channel/log] [--facts channel/facts]
+                              [--today YYYY-MM-DD]
 
 Content checks (hook, metadata, facts, variety) run first; if any fails the
-voice is never called. Exit 0 only if every check passes.
+voice is never called. Exit 0 only if every check passes. "Today" (for the
+title window and for expiring "(as of: ...)" fact bullets) defaults to the
+America/New_York date.
 """
 import argparse
 import json
@@ -15,6 +18,7 @@ from dataclasses import asdict
 from datetime import date, timedelta
 from pathlib import Path
 
+from pipeline import media as media_mod
 from pipeline import render as render_mod
 from pipeline.captions import caption_text, chunk_words
 from pipeline.checks import (CheckResult, check_facts, check_hook, check_metadata,
@@ -27,6 +31,17 @@ SCENE_VIDEOS = 10
 _DATED = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
 
 
+def today_ny() -> str:
+    """Today's date in America/New_York (the channel's day), as YYYY-MM-DD."""
+    return media_mod.today()["date"]
+
+
+def _as_date(today):
+    if today is None:
+        today = today_ny()
+    return date.fromisoformat(today) if isinstance(today, str) else today
+
+
 def load_recent(log_dir, today=None):
     """(title_entries, scene_entries) from a log dir of YYYY-MM-DD.json files.
 
@@ -35,7 +50,7 @@ def load_recent(log_dir, today=None):
     Entries without both "title" and "scenes" are ignored, as are files whose
     name is not a date or that do not hold a JSON list."""
     log_dir = Path(log_dir)
-    today = date.fromisoformat(today) if isinstance(today, str) else (today or date.today())
+    today = _as_date(today)
     dated = []
     for p in log_dir.glob("*.json"):
         m = _DATED.match(p.name)
@@ -69,7 +84,8 @@ def variety(script, titles, scenes) -> CheckResult:
                        f"(30 days), scenes distinct from last {len(scenes)}")
 
 
-def content_checks(script, facts_dir, recent_dir) -> list:
+def content_checks(script, facts_dir, recent_dir, today=None) -> list:
+    today = _as_date(today)
     checks = [check_hook(script), check_metadata(script)]
     facts_path = Path(facts_dir) / f"{script['topic']}.md"
     try:
@@ -78,8 +94,8 @@ def content_checks(script, facts_dir, recent_dir) -> list:
         checks.append(CheckResult("facts", False,
                                   f"fact sheet {facts_path} not readable: {e.strerror or e}"))
     else:
-        checks.append(check_facts(script, facts_text))
-    titles, scenes = load_recent(recent_dir) if recent_dir else ([], [])
+        checks.append(check_facts(script, facts_text, today=today))
+    titles, scenes = load_recent(recent_dir, today) if recent_dir else ([], [])
     checks.append(variety(script, titles, scenes))
     return checks
 
@@ -93,7 +109,7 @@ def _write_report(outdir: Path, ok, checks, duration, scenes, error):
     return report
 
 
-def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None) -> dict:
+def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None, today=None) -> dict:
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     video = outdir / "video.mp4"
@@ -104,7 +120,7 @@ def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None) -> di
     except (OSError, ValueError) as e:     # JSONDecodeError is a ValueError
         return _write_report(outdir, False, [], 0.0, [], f"bad script: {e}")
     scenes = [b["scene"] for b in script["beats"]]
-    checks = content_checks(script, facts_dir, recent_dir)
+    checks = content_checks(script, facts_dir, recent_dir, today)
     if not all(c.ok for c in checks):
         return _write_report(outdir, False, checks, 0.0, scenes,
                              "content checks failed; not voiced")
@@ -138,8 +154,10 @@ def main(argv=None) -> int:
     ap.add_argument("outdir")
     ap.add_argument("--recent", default=None, help="log dir of YYYY-MM-DD.json files")
     ap.add_argument("--facts", default="channel/facts", help="dir of <topic>.md fact sheets")
+    ap.add_argument("--today", default=None, type=date.fromisoformat,
+                    help="YYYY-MM-DD (default: today in America/New_York)")
     a = ap.parse_args(argv)
-    report = build(a.script, a.outdir, a.facts, a.recent)
+    report = build(a.script, a.outdir, a.facts, a.recent, a.today)
     print(json.dumps({"ok": report["ok"], "error": report["error"],
                       "failed": [c["name"] for c in report["checks"] if not c["ok"]]}))
     return 0 if report["ok"] else 1
