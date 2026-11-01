@@ -139,12 +139,15 @@ def fact_bullets(facts_text: str) -> list:
 
 
 def is_expired(as_of, today) -> bool:
+    if isinstance(today, str):
+        today = date.fromisoformat(today)
     return as_of is not None and today is not None and today > as_of + timedelta(days=FRESH_DAYS)
 
 
 def expired_bullets(facts_text: str, today) -> list:
     """Bullets whose "(as of: YYYY-MM-DD)" is more than FRESH_DAYS days before today."""
-    return [t.strip() for t, as_of in fact_bullets(facts_text) if is_expired(as_of, today)]
+    return [re.sub(r"[ \t]+", " ", t).strip() for t, as_of in fact_bullets(facts_text)
+            if is_expired(as_of, today)]
 
 
 def _numbers_of(text: str) -> set:
