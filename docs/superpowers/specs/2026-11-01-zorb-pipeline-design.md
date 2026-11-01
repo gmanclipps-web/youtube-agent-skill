@@ -29,17 +29,24 @@ One scheduled session, created with the Metricool connector, runs `pipeline/run_
    different fact-sheet bullet as its twist than the topic's scripts of the last 30 days.
 2. **Write.** One script per topic using `/yt-script` (hooks scored by `skills/yt-script/hookscore.py`,
    best hook must score 65+) and `/yt-package` (title linted by `skills/yt-package/title.py`).
-   Output is `script.json`: title, description, tags, and a list of beats
-   `{line, scene, expression, props}`. Length 30-57 seconds of speech.
+   Output is `script.json`: title, description, tags, `thumb_text` (1-3 cover words, different
+   words from the title, linted as a pairing with `title.py --title ... --thumb ...`), optional
+   `thumb_expression`, and a list of beats `{line, scene, expression, props}`. Length 30-57
+   seconds of speech.
 3. **Voice.** `pipeline/voice.py` renders each line with edge-tts (one fixed Zorb voice, slight
    pitch shift) and records word timings for captions. Voice engine is swappable; ElevenLabs only if
    a key is added later.
 4. **Animate + edit.** `pipeline/render.py` draws every frame in code (Pillow + numpy) and encodes
    with ffmpeg: 1080x1920, 30 fps, H.264 + AAC.
 5. **Check.** `pipeline/checks.py` (below). Any failure: skip that video, log the reason.
-6. **Publish.** `pipeline/publish.md` steps: push the MP4 to the `media` branch (orphan branch,
-   reset weekly so only ~7 days of files exist), then schedule via Metricool `createScheduledPost`
-   as a YouTube Short at a public raw.githubusercontent.com URL.
+   After every check passes, `pipeline/build.py` renders the Shorts cover `thumbnail.jpg`
+   (`pipeline/thumbnail.py`) next to `video.mp4`; if the cover fails, the build fails and
+   `video.mp4` is removed.
+6. **Publish.** Push the MP4 and `thumbnail.jpg` to the `media` branch (orphan branch, reset
+   weekly so only ~7 days of files exist), verify both raw URLs, then schedule via Metricool
+   `createScheduledPost` as a YouTube Short with the cover as `videoThumbnailUrl`. If Metricool
+   answers `VIDEO_THUMBNAIL_NOT_APPLICABLE`, the payload is rebuilt with `--no-thumb` and
+   scheduled once more (logged as "cover rejected by Metricool").
 7. **Log.** `channel/log/YYYY-MM-DD.json`: topic, title, hook score, check results, Metricool
    planner URL or skip reason. Commit and push.
 
@@ -61,22 +68,24 @@ Publish times: 08:00, 13:00, 19:00 America/New_York (first `per_day` slots).
 
 1. **Facts.** Every number and named claim in the script appears in `channel/facts/<topic>.md`
    (each fact has a source URL). The code checks every number (digits and number words, a lone
-   "one" excepted) in the spoken lines, props, title, description and tags. Bullets marked
+   "one" excepted) in the spoken lines, props, title, description, tags and thumbnail text. Bullets marked
    `(as of: YYYY-MM-DD)` expire 45 days later; a number found only in expired bullets fails.
    Runs never edit fact sheets. Scripts may not recommend specific securities, predict prices,
-   or give personalised advice; a banned-phrase list (checked in lines, title, description and
-   tags) enforces this.
+   or give personalised advice; a banned-phrase list (checked in lines, title, description,
+   tags and thumbnail text) enforces this.
 2. **Technical.** ffprobe: 1080x1920, duration <= 59 s, audio stream present, captions text equals
    the spoken script.
 3. **Variety.** Title not within 0.8 similarity of any title from the last 30 days; scene sequence
    differs from each of the last 10 videos.
-4. **Metadata.** Description contains "Education, not financial advice."; title <= 60 chars.
+4. **Metadata.** Description contains "Education, not financial advice."; title <= 60 chars;
+   `thumb_text` shares no word of 4+ letters with the title.
 
 ## Metricool post fields
 
 `providers [{network: youtube}]`, `youtubeData {type: short, title, privacy: public, tags,
 category: EDUCATION, madeForKids: false, isAiGeneratedContent: false}`, `autoPublish: true`,
-`media [raw URL]`, timezone from brand settings.
+`media [raw URL]`, `videoThumbnailUrl` (raw URL of the matching `.jpg`), timezone from brand
+settings.
 
 ## Failure handling
 
@@ -100,4 +109,4 @@ Short and send it to the owner.
 
 ## Out of scope (phase 2)
 
-Long-form videos, ElevenLabs voice, thumbnails for Shorts, analytics feedback loop.
+Long-form videos, ElevenLabs voice, analytics feedback loop.

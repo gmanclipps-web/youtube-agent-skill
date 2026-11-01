@@ -32,7 +32,7 @@ that branch.
 ## Hard rules (read before doing anything else)
 
 1. Never publish (schedule) a video whose `report.json` has `"ok": false`, or whose
-   `video.mp4` is missing.
+   `video.mp4` or `thumbnail.jpg` is missing.
 2. Never edit anything under `pipeline/` or `skills/`, never weaken a check, never change
    `channel/config.json`, `channel/topics.json` or any `channel/facts/*.md` fact sheet (the
    owner maintains the sheets; a run only reads them). If the code seems broken, log it and stop.
@@ -46,8 +46,10 @@ that branch.
    anyone what to do. If a fact-sheet bullet sounds like advice, use it only descriptively
    ("Earth guides say many people keep...") or not at all.
 6. Do not call any Metricool tool other than `createScheduledPost`. Never call it twice for the
-   same topic. After any Metricool error, schedule nothing more today, and if today's log
-   already holds a Metricool error, schedule nothing at all today.
+   same topic, with one exception: when the first call is rejected with
+   `VIDEO_THUMBNAIL_NOT_APPLICABLE`, call it once more without the cover (step 6). After any
+   other Metricool error, schedule nothing more today, and if today's log already holds a
+   Metricool error, schedule nothing at all today.
 7. Push only to `claude/quirky-cannon-xc1vyz`; only `python3 -m pipeline.media upload` writes
    to the `media` branch. Never touch that
    branch with other git commands, never force-push any branch, never run `git rm`, `git clean`,
@@ -117,7 +119,7 @@ Each attempted topic gets exactly one log entry, written **the moment its outcom
   "status": "scheduled | skipped | error",
   "planner_url": "<plannerUrl, or null>",
   "media_url": "<raw URL, or null>",
-  "reason": "<why skipped / error text, or null>",
+  "reason": "<why skipped / error text; null when scheduled, unless step 6 says otherwise>",
   "publish_at": "<slot date with offset, or null>"
 }
 ```
@@ -274,11 +276,27 @@ not get from the tool.
   `#Shorts #inflation #personalfinance`). No links, no advice, no digits in hashtags.
 - Tags: 5-10 short search phrases (topic name, "<topic> explained", "personal finance",
   "money basics", "Zorb", "cartoon alien" ...).
+- Cover text (`thumb_text`): the words printed big on the Short's cover image. At most 3
+  words, upper case, punchy, a curiosity gap the title does not close (e.g.
+  `SNACKS COST MORE?!`). It must use **different words from the title** (the build fails if
+  they share any word of 4+ letters) and, like the title, any number in it must come from a
+  non-expired bullet of the sheet (prefer no number at all). Write 3 options and lint each
+  together with the chosen title:
+
+  ```bash
+  python3 skills/yt-package/title.py --title "<title>" --thumb "<thumb_text>"
+  ```
+
+  Pick an option whose output has **no `duplicate` warning** and no `thumb-length` warning;
+  if none qualifies, write 3 more. Never put banned phrases or advice in it (hard rule 5).
+- Cover face (`thumb_expression`): one of `neutral, confused, shocked, aha, smug`, the one
+  that fits the cover text (e.g. `confused` for a question, `shocked` for a surprise).
 
 ### 4e. Save and pre-check
 
 Write the script to `/tmp/zorb/TODAY/<topic>/script.json` with the fields
-`topic, title, description, tags, hook_score, beats` (each beat: `line, scene, expression, props`).
+`topic, title, description, tags, hook_score, thumb_text, thumb_expression, beats` (each beat:
+`line, scene, expression, props`).
 Then run both checks:
 
 ```bash
@@ -287,8 +305,8 @@ python3 -m pipeline.media numbers /tmp/zorb/TODAY/<topic>/script.json channel/fa
 ```
 
 The first must print words 75-110, beats 6-9, distinct scenes >= 4. The second must print `ok`
-(it lists any number, digits or words, in the title, description or tags that is not in a
-non-expired bullet of the sheet; remove or fix those). Fix the script until both pass; these fixes do not count as rewrites.
+(it lists any number, digits or words, in the title, description, tags or `thumb_text` that is
+not in a non-expired bullet of the sheet; remove or fix those). Fix the script until both pass; these fixes do not count as rewrites.
 
 Then save a copy: `mkdir -p channel/scripts/TODAY && cp /tmp/zorb/TODAY/<topic>/script.json
 channel/scripts/TODAY/<topic>.json` (repeat the copy after every rewrite, so the committed copy
@@ -301,49 +319,56 @@ python3 -m pipeline.build /tmp/zorb/TODAY/<topic>/script.json /tmp/zorb/TODAY/<t
 cat /tmp/zorb/TODAY/<topic>/out/report.json
 ```
 
-Read `report.json` (`ok`, `checks`, `duration`, `scenes`, `error`):
+Read `report.json` (`ok`, `checks`, `duration`, `scenes`, `error`, `thumbnail`):
 
-- `ok: true` and `/tmp/zorb/TODAY/<topic>/out/video.mp4` exists: go to step 5.
+- `ok: true` and both `/tmp/zorb/TODAY/<topic>/out/video.mp4` and
+  `/tmp/zorb/TODAY/<topic>/out/thumbnail.jpg` exist: go to step 5. (The build renders the
+  cover `thumbnail.jpg` from `thumb_text` and `thumb_expression` after every check passes.)
 - `error` starts with `voice failed` (e.g. "No audio was received"): wait 30 s and build again.
   At most 3 builds in total for voice failures; after the third, log it (step L:
   `"status": "error"`, `"reason"` = the error text) and go to the next topic.
 - `error` is `content checks failed; not voiced` or `technical check failed`: read the failing
   checks' `detail`, rewrite the script to fix exactly that (remove an unknown number, shorten a
   script that runs over 59 s, change a title too similar to a recent one, reorder scenes...),
-  redo 4e and build again. At most 2 rewrites; then log it (step L: `"status": "skipped"`,
-  `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ") and go to
+  redo 4e and build again (a `metadata` failure saying `thumb_text repeats the title` is fixed
+  by new cover words, re-linted as in 4d). At most 2 rewrites; then log it (step L:
+  `"status": "skipped"`, `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ") and go to
   the next topic. Never "fix" a check by editing pipeline code, the fact sheet or the logs.
   **A failing `facts` check is never fixed by editing a fact sheet**: remove or change the
   number in the script, or skip the topic.
-- `error` starts with `bad script`, `render failed` or `build failed`: fix an obviously malformed
-  script.json once; otherwise log it (step L: `"status": "error"`, `"reason"` = the error text)
+- `error` starts with `bad script`, `render failed`, `thumbnail failed` or `build failed`: fix an
+  obviously malformed script.json once; otherwise log it (step L: `"status": "error"`, `"reason"` = the error text)
   and go to the next topic.
 
-## 5. Host the mp4 on the `media` branch
+## 5. Host the mp4 and the cover on the `media` branch
 
-Only for a topic whose report has `ok: true`. One command does everything:
+Only for a topic whose report has `ok: true`. Upload the video, then the cover (two commands,
+in this order; each prints its raw URL):
 
 ```bash
 python3 -m pipeline.media upload TODAY <topic> /tmp/zorb/TODAY/<topic>/out/video.mp4
+python3 -m pipeline.media upload TODAY <topic> /tmp/zorb/TODAY/<topic>/out/thumbnail.jpg
 ```
 
-It commits the file as `media/TODAY/<topic>.mp4` on origin's orphan `media` branch with git
-plumbing and a throwaway index (your checkout, branch and files are not touched), pushes with
-retries (2, 4, 8, 16 s), and prints the raw URL. On a Monday's first upload it restarts the
+`URL` = the first printed URL (ends in `/<topic>.mp4`), `THUMB_URL` = the second (ends in
+`/<topic>.jpg`). Each commits its file as `media/TODAY/<topic>.mp4` / `.jpg` on origin's
+orphan `media` branch with git plumbing and a throwaway index (your checkout, branch and files
+are not touched) and pushes with retries (2, 4, 8, 16 s). On a Monday's first upload it restarts the
 branch from scratch, keeping only yesterday's and today's folders (posts that may not have
 published yet). Re-running it with the same file is harmless.
 
-If it exits non-zero: if the message says `rejected` (someone else pushed meanwhile), run the
-same command once more. Otherwise, or if it fails again, log it (step L: `"status": "error"`,
+If either exits non-zero: if the message says `rejected` (someone else pushed meanwhile), run
+the same command once more. Otherwise, or if it fails again, log it (step L: `"status": "error"`,
 `"reason"` = the printed error) and go to the next topic.
 
-Then check the URL really serves this file:
+Then check both URLs really serve these files (200 and the file's exact Content-Length):
 
 ```bash
 python3 -m pipeline.media verify TODAY <topic> /tmp/zorb/TODAY/<topic>/out/video.mp4
+python3 -m pipeline.media verify TODAY <topic> /tmp/zorb/TODAY/<topic>/out/thumbnail.jpg
 ```
 
-It retries for about a minute and prints `ok 200 <bytes>`. If it exits non-zero, do not
+Each retries for about a minute and prints `ok 200 <bytes>`. If either exits non-zero, do not
 schedule: log it (step L: `"status": "error"`, `"reason"` = the printed error, `"media_url"` =
 the URL) and go to the next topic.
 
@@ -370,17 +395,18 @@ time tomorrow; it looks at most 2 days ahead) and skips every slot already booke
 scheduling.
 
 Print the exact tool arguments (`SLOT_DATE` = the slot's `date`, e.g.
-`2026-11-02T08:00:00-05:00`; `URL` = the raw URL printed by the upload in step 5; add
-`--draft` in a dry run):
+`2026-11-02T08:00:00-05:00`; `URL` and `THUMB_URL` = the mp4 and jpg raw URLs printed by the
+uploads in step 5; add `--draft` in a dry run):
 
 ```bash
-python3 -m pipeline.media payload /tmp/zorb/TODAY/<topic>/script.json SLOT_DATE URL /tmp/zorb/TODAY/<topic>/out/report.json
+python3 -m pipeline.media payload /tmp/zorb/TODAY/<topic>/script.json SLOT_DATE URL /tmp/zorb/TODAY/<topic>/out/report.json --thumb THUMB_URL
 ```
 
 It refuses (exit non-zero, message on stderr) unless `report.json` says `"ok": true` and
-`video.mp4` sits next to it, the slot date is a slot as printed by `slots`, and the URL is
-this topic's media URL. If it refuses, do not schedule: log it (step L: `"status": "error"`,
-`"reason"` = the printed error) and go to the next topic.
+`video.mp4` and `thumbnail.jpg` sit next to it, the slot date is a slot as printed by `slots`,
+the URL is this topic's media URL and `THUMB_URL` is the matching `.jpg` URL (same day and
+topic). The cover goes into `info` as `videoThumbnailUrl`. If it refuses, do not schedule:
+log it (step L: `"status": "error"`, `"reason"` = the printed error) and go to the next topic.
 
 Otherwise it prints one JSON object with exactly three keys: `blogId`, `date` and `info`.
 Call `createScheduledPost` with exactly those three values, copied verbatim: `info` is
@@ -388,10 +414,24 @@ already a JSON **string**; pass that string as it is (do not parse, re-serialise
 or edit it, and do not build the JSON yourself). Do not add any other argument.
 
 - Success: the response contains a `plannerUrl`. **Immediately** log it (step L:
-  `"status": "scheduled"`, `title`, `scenes`, `planner_url`, `media_url`, `publish_at` = the
-  slot's `date`), commit, and push (step 7's push command), before doing anything else. This
+  `"status": "scheduled"`, `title`, `scenes`, `planner_url`, `media_url` = `URL` (the mp4),
+  `publish_at` = the slot's `date`, `"reason": null`), commit, and push (step 7's push command), before doing anything else. This
   is what stops a crashed-and-restarted run from scheduling the same video twice.
-- Any error, or a response without a `plannerUrl`: log it (step L: `"status": "error"`,
+- The error mentions `VIDEO_THUMBNAIL_NOT_APPLICABLE` (Metricool will not take the cover; no
+  post was created): rebuild the payload without the cover, the same command with `--no-thumb`
+  in place of `--thumb THUMB_URL` (keep `--draft` in a dry run):
+
+  ```bash
+  python3 -m pipeline.media payload /tmp/zorb/TODAY/<topic>/script.json SLOT_DATE URL /tmp/zorb/TODAY/<topic>/out/report.json --no-thumb
+  ```
+
+  and call `createScheduledPost` **once more** with its three values (same rules as above).
+  This is the only second call allowed for a topic (hard rule 6), and only for this exact
+  error. Do not pick a new slot: reuse the same `SLOT_DATE`. If it succeeds, log it exactly as
+  the Success bullet says, but with `"reason": "cover rejected by Metricool"` (in a dry run:
+  `"reason": "dry run: draft only; cover rejected by Metricool"`), commit and push at once. If
+  it fails too (any error, or no `plannerUrl`), handle that failure as the next bullet says.
+- Any other error, or a response without a `plannerUrl`: log it (step L: `"status": "error"`,
   `"reason"` = `metricool: ` + the error text verbatim, or the full response if there is no
   error text). **Do not retry, do not start another topic, and schedule nothing more today**;
   go to step 7.
@@ -414,4 +454,5 @@ push again. Never force-push this branch.
 
 End with one paragraph: the date, each topic attempted with its status, title, publish time and
 planner URL (or the reason it was skipped), every expired fact-sheet bullet you saw (step 3) so
-the owner can refresh it, and anything else the owner should look at. Prefix it with "DRY RUN" for a dry run.
+the owner can refresh it, any topic scheduled without its cover ("cover rejected by
+Metricool"), and anything else the owner should look at. Prefix it with "DRY RUN" for a dry run.
