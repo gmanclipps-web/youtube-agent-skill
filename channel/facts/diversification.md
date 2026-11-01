@@ -1,0 +1,10 @@
+# Diversification
+
+- Diversification means spreading money among different investments to reduce risk, summed up as "don't put all your eggs in one basket." (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- The SEC's example: street vendors sell both umbrellas and sunglasses, because rain sells umbrellas and sun sells sunglasses, so selling both lowers the risk of a bad day. (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- Large company stocks as a group have lost money on average about one out of every three years. (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- The SEC says owning only four or five individual stocks is not diversified; it takes at least a dozen (12) carefully selected stocks. (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- A total stock market index fund owns stock in thousands of companies in a single investment. (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- Rebalancing example: a plan of 60 percent stocks can drift to 80 percent stocks after a market rise, and rebalancing brings it back to the original mix. (source: https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset)
+- Owning two mutual funds that invest in the same kind of stocks does not add diversification. (source: https://www.finra.org/investors/investing/investing-basics/asset-allocation-diversification)
+- Diversification cannot guarantee investments won't lose money when the market drops, but it can improve the chances of not losing money, or of losing less than without diversifying. (source: https://www.investor.gov/introduction-investing/investing-basics/save-and-invest/diversify-your-investments)

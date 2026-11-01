@@ -1,0 +1,9 @@
+# Bonds
+
+- A bond is a debt security, like an IOU: buying one means lending money to the issuer (a government, a city or a company), which promises to pay interest and repay the face value when the bond matures. (source: https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products/bonds)
+- Bonds typically pay interest on a regular schedule, such as every six months. (source: https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products/bonds)
+- When interest rates rise, newly issued bonds pay more than older ones, so an older bond with a lower rate may have to be sold at a discount. (source: https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products/bonds)
+- High-yield corporate bonds have lower credit ratings and pay higher interest rates in return for the higher risk that the issuer fails to pay. (source: https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products/bonds)
+- U.S. Treasury Bonds last 20 or 30 years, pay a fixed rate every six months, and can be bought for as little as $100. (source: https://www.treasurydirect.gov/marketable-securities/treasury-bonds/)
+- Treasury Bills last from 4 weeks to 52 weeks and are sold at a discount: the interest is the difference between the price paid and the face value received at the end. (source: https://www.treasurydirect.gov/marketable-securities/treasury-bills/)
+- Series I savings bonds issued from November 1, 2026 to April 30, 2027 earn 5.51 percent, including a fixed rate of 1.40 percent; they cost $25 minimum and one person can buy up to $10,000 a year electronically. (as of: 2026-11-01) (source: https://www.treasurydirect.gov/savings-bonds/i-bonds/)

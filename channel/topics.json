@@ -10,5 +10,15 @@
   {"id": "emergency_fund", "title_seed": "a money cushion for surprises"},
   {"id": "budgeting_50_30_20", "title_seed": "splitting a paycheck three ways"},
   {"id": "index_funds", "title_seed": "buying the whole market at once"},
-  {"id": "taxes_basics", "title_seed": "tax brackets are layers"}
+  {"id": "taxes_basics", "title_seed": "tax brackets are layers"},
+  {"id": "credit_card_minimums", "title_seed": "the tiny payment that takes forever"},
+  {"id": "apr_vs_apy", "title_seed": "two rates that sound like twins"},
+  {"id": "bonds_basics", "title_seed": "lending money to a whole country"},
+  {"id": "diversification", "title_seed": "umbrellas and sunglasses in one basket"},
+  {"id": "retirement_accounts", "title_seed": "a piggy bank for old Earthlings"},
+  {"id": "credit_reports", "title_seed": "the file that follows every Earthling"},
+  {"id": "money_scams", "title_seed": "fake aliens asking for gift cards"},
+  {"id": "overdraft_fees", "title_seed": "the fee bigger than the purchase"},
+  {"id": "mortgages_basics", "title_seed": "borrowing a whole house"},
+  {"id": "social_security_basics", "title_seed": "the paycheck Earthlings get when old"}
 ]

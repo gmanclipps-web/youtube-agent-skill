@@ -1,0 +1,9 @@
+# Credit reports
+
+- A credit report is a summary of your credit history, like how you pay your bills or whether you filed for bankruptcy; three nationwide credit bureaus, Equifax, Experian and TransUnion, collect it. (source: https://consumer.ftc.gov/articles/free-credit-reports)
+- Credit bureaus sell report information to businesses deciding whether to lend you money, insure you or rent you a home, and some employers use credit reports when hiring. (source: https://consumer.ftc.gov/articles/free-credit-reports)
+- Anyone can get a free credit report from each of the three bureaus once a week at AnnualCreditReport.com, and federal law also gives a right to one free report from each every 12 months. (source: https://www.consumerfinance.gov/ask-cfpb/how-do-i-get-a-free-copy-of-my-credit-reports-en-5/)
+- AnnualCreditReport.com is the only website authorized to fill orders for the free reports; imposter sites sometimes use misspelled web addresses to catch typos. (source: https://consumer.ftc.gov/articles/free-credit-reports)
+- Most negative information can stay on a credit report for 7 years, and bankruptcies for up to 10 years. (source: https://www.consumerfinance.gov/ask-cfpb/how-long-does-negative-information-remain-on-my-credit-report-en-323/)
+- No one has the right to remove accurate negative information such as late payments; errors can be disputed for free without paying a credit repair company. (source: https://www.consumerfinance.gov/ask-cfpb/how-long-does-negative-information-remain-on-my-credit-report-en-323/)
+- Common errors include accounts that belong to someone with a similar name (a "mixed file"), closed accounts reported as open, and the same debt listed more than once. (source: https://www.consumerfinance.gov/ask-cfpb/what-are-common-credit-report-errors-that-i-should-look-for-on-my-credit-report-en-313/)

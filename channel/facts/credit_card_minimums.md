@@ -1,0 +1,9 @@
+# Credit card minimum payments
+
+- The minimum payment is the amount a credit card company requires every month; missing it can bring a late fee, a higher penalty APR on new purchases and damage to your credit history. (source: https://www.consumerfinance.gov/data-research/credit-card-data/know-you-owe-credit-cards/)
+- Card issuers must print on each statement how long it would take to pay off the balance paying only the minimum, and how much you would need to pay each month to clear it in 36 months (3 years). (source: https://www.consumerfinance.gov/ask-cfpb/a-box-on-my-credit-card-bill-says-that-i-will-pay-off-the-balance-in-three-years-if-i-pay-a-certain-amount-what-does-that-mean-do-i-have-to-pay-that-much-if-i-pay-that-much-and-make-new-purchases-will-i-still-owe-nothing-after-three-years-en-36/)
+- Federal Reserve example: owe $3,000 at 14.4 percent interest with a $90 minimum payment, and paying only the minimum takes about 11 years and costs an estimated $4,745 in total. (source: https://www.federalreserve.gov/consumerinfo/wyntk/wyntk_ccrules.pdf)
+- In the same example, paying $103 a month clears the $3,000 in 3 years for an estimated $3,712 total, a savings of $1,033. (source: https://www.federalreserve.gov/consumerinfo/wyntk/wyntk_ccrules.pdf)
+- A Federal Reserve sample statement warning: a $1,000 balance at 17 percent, paying only the minimum, would take over 7 years to repay. (source: https://www.federalreserve.gov/DCCA/RegulationZ/20081218/g-18(d-e).pdf)
+- Credit card interest may be compounded daily, so a balance grows faster as interest is charged on interest. (source: https://www.consumerfinance.gov/data-research/credit-card-data/know-you-owe-credit-cards/)
+- On most cards, paying the full balance by the due date each month means paying no interest on purchases. (source: https://www.consumerfinance.gov/ask-cfpb/what-is-a-credit-card-interest-rate-what-does-apr-mean-en-44/)

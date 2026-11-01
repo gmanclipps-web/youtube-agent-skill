@@ -1,0 +1,10 @@
+# Money scams
+
+- People reported losing about $16 billion to fraud in 2025, the highest on record and about 25 percent more than in 2024, according to the FTC. (source: https://www.ftc.gov/news-events/news/press-releases/2026/06/ftc-data-show-people-reported-losing-3-point-5-billion-imposter-scams-2025)
+- Imposter scams were the most reported fraud in 2025, nearly one in three fraud reports, with $3.5 billion reported lost. (source: https://www.ftc.gov/news-events/news/press-releases/2026/06/ftc-data-show-people-reported-losing-3-point-5-billion-imposter-scams-2025)
+- Some of the costliest imposter scams start with a fake security alert, often claiming to be from a bank, that convinces people to move their money to "protect" it. (source: https://www.ftc.gov/news-events/news/press-releases/2026/06/ftc-data-show-people-reported-losing-3-point-5-billion-imposter-scams-2025)
+- In 2025, nearly 30 percent of people who lost money to a scam said it started on social media, with $2.1 billion reported lost, an eightfold increase since 2020. (source: https://www.ftc.gov/news-events/news/press-releases/2026/04/new-ftc-data-show-people-have-lost-billions-social-media-scams)
+- Investment scams that started on social media cost people $1.1 billion in 2025, more than half of all reported social media scam losses. (source: https://www.ftc.gov/news-events/news/press-releases/2026/04/new-ftc-data-show-people-have-lost-billions-social-media-scams)
+- The FTC's four signs of a scam: they pretend to be from an organization you know, they say there is a problem or a prize, they pressure you to act immediately, and they tell you to pay in a specific way. (source: https://consumer.ftc.gov/articles/how-avoid-scam)
+- Scammers often insist on payment by cryptocurrency, wire transfer, payment app or gift card, and can fake the name and number shown on caller ID. (source: https://consumer.ftc.gov/articles/how-avoid-scam)
+- The FTC will never threaten you, say you must transfer money to "protect it," or tell you to withdraw cash or buy gold and hand it to someone. (source: https://consumer.ftc.gov/articles/how-avoid-scam)

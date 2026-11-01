@@ -1,0 +1,10 @@
+# Mortgages
+
+- A mortgage is an agreement with a lender that gives the lender the right to take your property if you don't repay the money borrowed plus interest. (source: https://www.consumerfinance.gov/ask-cfpb/what-is-a-mortgage-en-99/)
+- Most homebuyers choose a 30-year loan because the monthly payments can be low; a 15-year loan has higher payments but is paid off in 15 years and can cost less in total. (source: https://www.consumerfinance.gov/consumer-tools/mortgages/shopping-for-a-mortgage/)
+- With a fixed-rate mortgage the interest rate and monthly payment stay the same for the life of the loan; an adjustable-rate mortgage is usually fixed for the first few years, then adjusts with an index of interest rates, so payments can rise. (source: https://www.consumerfinance.gov/consumer-tools/mortgages/shopping-for-a-mortgage/)
+- Private mortgage insurance (PMI) is usually required on a conventional loan with a down payment of less than 20 percent, and it protects the lender, not the borrower. (source: https://www.consumerfinance.gov/ask-cfpb/what-is-private-mortgage-insurance-en-122/)
+- A mortgage's APR includes the interest rate plus points, broker fees and other charges, so it is usually higher than the interest rate. (source: https://www.consumerfinance.gov/ask-cfpb/what-is-the-difference-between-a-mortgage-interest-rate-and-an-apr-en-135/)
+- Homeowner's insurance, property taxes and mortgage insurance are typically added to the monthly mortgage payment on top of principal and interest. (source: https://www.consumerfinance.gov/ask-cfpb/what-is-a-mortgage-en-99/)
+- Borrowers must receive the Closing Disclosure from their lender at least three business days before closing. (source: https://www.consumerfinance.gov/ask-cfpb/what-should-i-do-if-i-do-not-get-a-closing-disclosure-three-days-before-my-mortgage-closing-en-1911/)
+- The CFPB says shopping around for a mortgage can save thousands of dollars, and that when all three of a buyer's preapprovals come within a short time, "there should be no major impact" on the credit score. (source: https://www.consumerfinance.gov/consumer-tools/mortgages/shopping-for-a-mortgage/)
