@@ -54,3 +54,23 @@ def test_variety_fails_identical_scene_sequence():
 def test_hook_threshold():
     assert not check_hook(script(hook_score=54)).ok
     assert check_hook(script(hook_score=55)).ok
+
+
+def test_normalise_drops_trailing_decimal_zeros():
+    assert normalise_numbers("1.50 and 2.0 and 100 and 3.05") == {"1.5", "2", "100", "3.05"}
+
+
+def test_facts_ignore_numbers_in_urls_and_list_markers():
+    sheet = ("1. Inflation was 2% (https://www.bls.gov/cpi/2024/table9.htm)\n"
+             "2) See http://example.com/page/42\n"
+             "- Rate: 7 percent\n")
+    nums = sheet  # numbers 9, 42, 2024 live only in URLs; 1 only as list marker
+    assert not check_facts(script(["It went up 9 percent."]), nums).ok
+    assert not check_facts(script(["Since 2024."]), nums).ok
+    assert not check_facts(script(["Step 1 is easy."]), nums).ok
+    assert check_facts(script(["Prices rose 2% then 7%."]), nums).ok
+
+
+def test_facts_dollar_thousand_vs_plain():
+    assert check_facts(script(["Save $1,000 this year."]), "Goal: 1000 dollars.").ok
+    assert check_facts(script(["It cost $1.50."]), "Price 1.5").ok
