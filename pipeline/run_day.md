@@ -205,11 +205,11 @@ theirs. If every usable bullet has already been the twist of one of them, skip t
 ### 4a. Voice and shape
 
 Copy the shape of `channel/samples/inflation/script.json` (read it now; it passed every check
-when it was published; its facts may have expired since, so copy its shape, not its numbers).
+when it was published; its facts may have expired since and its hook score (60) is below today's minimum of 65, so copy its shape, not its numbers or its hook).
 
 - Zorb is a small, curious, baffled, funny alien reporting on Earth money. Zorb talks to
   "Earthlings", in short sentences, present tense, no jargon without a one-line explanation.
-- 75-120 spoken words in total (about 30-50 seconds), 6-9 beats, one idea per beat.
+- 75-110 spoken words in total (about 30-57 seconds), 6-9 beats, one idea per beat.
 - Structure: **hook** (beat 1) -> **confusion** (Zorb does not get it) -> **one visual
   metaphor** carried over 2-3 beats -> **twist** (the surprising true fact) -> sign-off.
 - The last beat's line is exactly: `Zorb will return. Earth money remains confusing.`
@@ -257,8 +257,8 @@ python3 skills/yt-script/hookscore.py --json --hook "<hook option>"
 ```
 
 Use the one with the highest `verdict` as beat 1's `line`, word for word, and put that
-`verdict` (an integer) in `hook_score`. It must be `>= 55`. If none reaches 55, write five
-more; if still none, skip the topic (step L: `"status": "skipped"`, `"reason": "no hook >= 55"`). Never type a score you did
+`verdict` (an integer) in `hook_score`. It must be `>= 65`. If none reaches 65, write five
+more; if still none, skip the topic (step L: `"status": "skipped"`, `"reason": "no hook >= 65"`). Never type a score you did
 not get from the tool.
 
 ### 4d. Title, description, tags (skills/yt-package/SKILL.md)
@@ -286,7 +286,7 @@ python3 -c "import json,sys; s=json.load(open(sys.argv[1])); print(sum(len(b['li
 python3 -m pipeline.media numbers /tmp/zorb/TODAY/<topic>/script.json channel/facts/<topic>.md
 ```
 
-The first must print words 75-120, beats 6-9, distinct scenes >= 4. The second must print `ok`
+The first must print words 75-110, beats 6-9, distinct scenes >= 4. The second must print `ok`
 (it lists any number, digits or words, in the title, description or tags that is not in a
 non-expired bullet of the sheet; remove or fix those). Fix the script until both pass; these fixes do not count as rewrites.
 

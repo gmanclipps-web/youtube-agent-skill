@@ -28,9 +28,9 @@ One scheduled session, created with the Metricool connector, runs `pipeline/run_
    `python3 -m pipeline.media topics`, checked against `channel/log/`). A repeat must use a
    different fact-sheet bullet as its twist than the topic's scripts of the last 30 days.
 2. **Write.** One script per topic using `/yt-script` (hooks scored by `skills/yt-script/hookscore.py`,
-   best hook must score 55+) and `/yt-package` (title linted by `skills/yt-package/title.py`).
+   best hook must score 65+) and `/yt-package` (title linted by `skills/yt-package/title.py`).
    Output is `script.json`: title, description, tags, and a list of beats
-   `{line, scene, expression, props}`. Length 30-50 seconds of speech.
+   `{line, scene, expression, props}`. Length 30-57 seconds of speech.
 3. **Voice.** `pipeline/voice.py` renders each line with edge-tts (one fixed Zorb voice, slight
    pitch shift) and records word timings for captions. Voice engine is swappable; ElevenLabs only if
    a key is added later.

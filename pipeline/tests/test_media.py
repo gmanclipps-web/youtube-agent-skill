@@ -439,7 +439,7 @@ def _payload_setup(tmp_path, ok=True, video=True):
     sp = tmp_path / "script.json"
     sp.write_text(json.dumps({"topic": "inflation", "title": "Zorb Learns Why $100 Buys Less",
                               "description": DESC, "tags": ["inflation", "Zorb"],
-                              "hook_score": 60,
+                              "hook_score": 70,
                               "beats": [{"line": "Hi.", "scene": "shop",
                                          "expression": "neutral", "props": {}}]}))
     out = tmp_path / "out"

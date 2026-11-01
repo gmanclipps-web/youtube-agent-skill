@@ -52,8 +52,8 @@ def test_variety_fails_identical_scene_sequence():
 
 
 def test_hook_threshold():
-    assert not check_hook(script(hook_score=54)).ok
-    assert check_hook(script(hook_score=55)).ok
+    assert not check_hook(script(hook_score=64)).ok
+    assert check_hook(script(hook_score=65)).ok
 
 
 def test_normalise_drops_trailing_decimal_zeros():

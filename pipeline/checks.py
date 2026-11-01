@@ -11,7 +11,7 @@ BANNED_PHRASES = ("you should buy", "guaranteed", "will go up", "will crash",
                   "buy now", "financial advice for you")
 DISCLAIMER = "Education, not financial advice."
 MAX_TITLE = 60
-HOOK_MIN = 55
+HOOK_MIN = 65
 TITLE_SIMILARITY_MAX = 0.8
 VIDEO_SIZE = (1080, 1920)
 MAX_DURATION = 59.0
