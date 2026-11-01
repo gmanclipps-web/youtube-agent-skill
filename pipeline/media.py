@@ -1,8 +1,12 @@
 """Small deterministic helpers for the daily run (see pipeline/run_day.md).
 
     python3 -m pipeline.media today [--log-dir channel/log]
+    python3 -m pipeline.media topics [--log-dir channel/log] [--topics channel/topics.json]
+                                     [--facts channel/facts] [--n N] [--today DATE]
+    python3 -m pipeline.media stale SHEET [--today DATE]   # expired "(as of: ...)" bullets
     python3 -m pipeline.media slots --per-day N [--config channel/config.json] [--log-dir channel/log]
-    python3 -m pipeline.media numbers SCRIPT FACTS         # title/description/tags numbers on sheet?
+    python3 -m pipeline.media numbers SCRIPT FACTS [--today DATE]  # title/description/tags numbers on sheet?
+    python3 -m pipeline.media payload SCRIPT SLOT_DATE URL REPORT [--config channel/config.json] [--draft]
     python3 -m pipeline.media upload DATE TOPIC MP4 [--repo .]   # push mp4 to the media branch
     python3 -m pipeline.media verify DATE TOPIC MP4        # raw URL serves the same bytes?
     python3 -m pipeline.media log DATE ENTRY_JSON [--log-dir channel/log]
@@ -22,7 +26,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from pipeline.checks import _fact_numbers, normalise_numbers
+from pipeline.checks import _fact_numbers, expired_bullets, text_numbers
+from pipeline.script_schema import load_script
 
 REPO = "gmanclipps-web/youtube-agent-skill"
 BRANCH = "media"
@@ -34,6 +39,9 @@ LOG_KEYS = ("topic", "title", "scenes", "hook_score", "checks", "status",
             "planner_url", "media_url", "reason", "publish_at")
 STATUSES = ("scheduled", "skipped", "error")
 METRICOOL_PREFIX = "metricool:"
+TOPIC_GAP_DAYS = 6      # a topic scheduled on day D is eligible again from D + 6
+SLOT_LOOKAHEAD = 2      # slots() offers slots up to this many days ahead
+_DATED = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
 
 
 class MediaError(Exception):
@@ -117,15 +125,18 @@ def slots(config: dict, now=None, per_day=None, log_dir=None) -> list:
 
     The configured slots in order, each for today in the config timezone, or
     tomorrow if already past or less than 20 minutes away; then the following
-    days' slots in time order. Slots already used (publish_at of a scheduled
-    entry in today's or yesterday's log) are skipped. Returns the first per_day."""
+    days' slots in time order (up to SLOT_LOOKAHEAD days ahead). Slots already
+    used (publish_at of a scheduled entry in the logs of today and the
+    SLOT_LOOKAHEAD days before, any of which could have booked them) are
+    skipped. Returns the first per_day."""
     tz = config.get("timezone", TZ)
     zone = ZoneInfo(tz)
     local = _now(now, tz)
     n = config.get("per_day", 2) if per_day is None else per_day
     booked = set()
     if log_dir is not None:
-        for day in (local.date(), local.date() - timedelta(days=1)):
+        # a run up to SLOT_LOOKAHEAD days ago may have booked a slot we would offer
+        for day in (local.date() - timedelta(days=k) for k in range(SLOT_LOOKAHEAD + 1)):
             booked |= {e.get("publish_at") for e in _read_log(log_dir, day.isoformat())
                        if e.get("status") == "scheduled"}
     hm = [tuple(int(x) for x in s.split(":")) for s in config["slots"]]
@@ -139,7 +150,8 @@ def slots(config: dict, now=None, per_day=None, log_dir=None) -> list:
         if when - local < MIN_LEAD:
             when = at(local.date() + timedelta(days=1), h, m)
         first.append(when)
-    later = sorted(at(local.date() + timedelta(days=k), h, m) for k in (1, 2) for h, m in hm)
+    later = sorted(at(local.date() + timedelta(days=k), h, m)
+                   for k in range(1, SLOT_LOOKAHEAD + 1) for h, m in hm)
     out, seen = [], set()
     for when in first + later:
         iso = when.isoformat(timespec="seconds")
@@ -156,13 +168,113 @@ def slots(config: dict, now=None, per_day=None, log_dir=None) -> list:
 
 # ---------------------------------------------------------------- numbers
 
-def metadata_numbers(script_path, facts_path) -> list:
-    """Numbers in title, description and tags that are not on the fact sheet."""
+def _date(d):
+    if d is None:
+        return date.fromisoformat(today()["date"])
+    return date.fromisoformat(d) if isinstance(d, str) else d
+
+
+def metadata_numbers(script_path, facts_path, today=None) -> list:
+    """Numbers (digits or number words) in title, description and tags that are
+    not on the fact sheet, or only in bullets expired by `today` (None = no expiry)."""
     s = json.loads(Path(script_path).read_text(encoding="utf-8"))
     text = " ".join([str(s.get("title", "")), str(s.get("description", ""))]
                     + [str(t) for t in s.get("tags", [])])
-    sheet = _fact_numbers(Path(facts_path).read_text(encoding="utf-8"))
-    return sorted(normalise_numbers(text) - sheet)
+    sheet = _fact_numbers(Path(facts_path).read_text(encoding="utf-8"),
+                          _date(today) if today is not None else None)
+    return sorted(text_numbers(text) - sheet)
+
+
+def stale(facts_path, today=None) -> list:
+    """Bullets of a fact sheet whose "(as of: YYYY-MM-DD)" is more than 45 days old."""
+    return expired_bullets(Path(facts_path).read_text(encoding="utf-8"), _date(today))
+
+
+# ---------------------------------------------------------------- topics
+
+def topics(log_dir, topics_path, facts_dir, today=None, n=None) -> list:
+    """Eligible topic ids, in the order to try them.
+
+    Eligible: has a fact sheet, was not tried today, and was not scheduled in
+    the last TOPIC_GAP_DAYS - 1 days (scheduled on day D -> eligible from
+    D + TOPIC_GAP_DAYS). Order: least recently scheduled first (never = first),
+    then least recently tried, then the order of topics.json. At most n."""
+    day = _date(today)
+    ids = [t["id"] for t in json.loads(Path(topics_path).read_text(encoding="utf-8"))]
+    last_sched, last_try = {}, {}
+    for p in Path(log_dir).glob("*.json"):
+        if not _DATED.match(p.name):
+            continue
+        for e in _read_log(log_dir, p.stem):
+            t = e.get("topic")
+            if not isinstance(t, str) or not t:
+                continue
+            last_try[t] = max(last_try.get(t, ""), p.stem)
+            if e.get("status") == "scheduled":
+                last_sched[t] = max(last_sched.get(t, ""), p.stem)
+    cutoff = (day - timedelta(days=TOPIC_GAP_DAYS)).isoformat()
+    eligible = [t for t in ids
+                if (Path(facts_dir) / f"{t}.md").is_file()
+                and last_sched.get(t, "") <= cutoff
+                and last_try.get(t, "") != day.isoformat()]
+    eligible.sort(key=lambda t: (last_sched.get(t, ""), last_try.get(t, ""), ids.index(t)))
+    return eligible if n is None else eligible[:n]
+
+
+# ---------------------------------------------------------------- payload
+
+def payload(script_path, slot_date, url, report_path, config_path="channel/config.json",
+            draft=False) -> dict:
+    """The exact createScheduledPost arguments {blogId, date, info (a JSON string)}.
+
+    Refuses (MediaError) unless report.json says ok: true and video.mp4 sits
+    next to it, the slot date is a full local time in the config timezone with
+    its UTC offset, and the URL is this repo's raw media URL for the topic."""
+    report_path = Path(report_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(report, dict) or report.get("ok") is not True:
+        raise MediaError(f"{report_path} does not say ok: true; never schedule it")
+    if not (report_path.parent / "video.mp4").is_file():
+        raise MediaError(f"no video.mp4 next to {report_path}; never schedule it")
+    script = load_script(script_path)
+    cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    tz = cfg.get("timezone", TZ)
+    try:
+        when = datetime.fromisoformat(slot_date)
+    except ValueError:
+        raise MediaError(f"bad slot date {slot_date!r}")
+    if when.tzinfo is None or \
+            when.astimezone(ZoneInfo(tz)).isoformat(timespec="seconds") != slot_date:
+        raise MediaError(f"slot date {slot_date!r} must be the slot's 'date' as printed by "
+                         f"slots (local {tz} time with its offset)")
+    prefix = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/media/"
+    if not (url.startswith(prefix) and url.endswith(f"/{script['topic']}.mp4")):
+        raise MediaError(f"media url {url!r} is not {prefix}<date>/{script['topic']}.mp4")
+    info = {
+        "providers": [{"network": "youtube"}],
+        "text": script["description"],
+        "media": [url],
+        "publicationDate": {"dateTime": when.strftime("%Y-%m-%dT%H:%M:%S"), "timezone": tz},
+        "autoPublish": True,
+        "draft": bool(draft),
+        "descendants": [],
+        "firstCommentText": "",
+        "hasNotReadNotes": False,
+        "mediaAltText": [],
+        "shortener": False,
+        "smartLinkData": {"ids": []},
+        "youtubeData": {
+            "title": script["title"],
+            "type": "short",
+            "privacy": "public",
+            "tags": list(script["tags"]),
+            "category": "EDUCATION",
+            "madeForKids": False,
+            "isAiGeneratedContent": False,
+        },
+    }
+    return {"blogId": str(cfg["blog_id"]), "date": slot_date,
+            "info": json.dumps(info, ensure_ascii=False)}
 
 
 # ---------------------------------------------------------------- git / upload
@@ -295,6 +407,23 @@ def main(argv=None) -> int:
     n = sub.add_parser("numbers")
     n.add_argument("script")
     n.add_argument("facts")
+    n.add_argument("--today", default=None, help="YYYY-MM-DD (default: New York today)")
+    tp = sub.add_parser("topics")
+    tp.add_argument("--log-dir", default="channel/log")
+    tp.add_argument("--topics", default="channel/topics.json")
+    tp.add_argument("--facts", default="channel/facts")
+    tp.add_argument("--n", type=int, default=None)
+    tp.add_argument("--today", default=None)
+    st = sub.add_parser("stale")
+    st.add_argument("sheet")
+    st.add_argument("--today", default=None)
+    pl = sub.add_parser("payload")
+    pl.add_argument("script")
+    pl.add_argument("slot_date")
+    pl.add_argument("url")
+    pl.add_argument("report")
+    pl.add_argument("--config", default="channel/config.json")
+    pl.add_argument("--draft", action="store_true")
     up = sub.add_parser("upload")
     up.add_argument("day")
     up.add_argument("topic")
@@ -319,11 +448,19 @@ def main(argv=None) -> int:
                 cfg = json.load(f)
             print(json.dumps(slots(cfg, per_day=a.per_day, log_dir=a.log_dir), indent=1))
         elif a.cmd == "numbers":
-            bad = metadata_numbers(a.script, a.facts)
+            bad = metadata_numbers(a.script, a.facts, _date(a.today))
             if bad:
                 print("numbers in title/description/tags not on fact sheet: " + ", ".join(bad))
                 return 1
             print("ok")
+        elif a.cmd == "topics":
+            print(json.dumps(topics(a.log_dir, a.topics, a.facts, a.today, a.n)))
+        elif a.cmd == "stale":
+            print("\n".join(stale(a.sheet, a.today)) or "none")
+        elif a.cmd == "payload":
+            print(json.dumps(payload(a.script, a.slot_date, a.url, a.report,
+                                     config_path=a.config, draft=a.draft),
+                             indent=1, ensure_ascii=False))
         elif a.cmd == "upload":
             print(upload(a.day, a.topic, a.mp4, repo=a.repo))
         elif a.cmd == "verify":

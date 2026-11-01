@@ -88,10 +88,18 @@ def test_slots_skip_slots_booked_today_or_yesterday(tmp_path):
 
 def test_slots_ignore_older_logs_and_bad_files(tmp_path):
     logs = tmp_path / "log"
-    _log(logs, "2026-10-31", [{"status": "scheduled", "publish_at": "2026-11-02T08:00:00-05:00"}])
+    _log(logs, "2026-10-30", [{"status": "scheduled", "publish_at": "2026-11-02T08:00:00-05:00"}])
     (logs / "2026-11-02.json").write_text("not json")
     now = datetime(2026, 11, 2, 5, 17, tzinfo=NY)
     assert media.slots(CFG, now, per_day=1, log_dir=logs)[0]["date"] == "2026-11-02T08:00:00-05:00"
+
+
+def test_slots_read_three_days_of_logs_matching_two_day_lookahead(tmp_path):
+    logs = tmp_path / "log"
+    # a run two days ago could book today's 08:00 (its lookahead reaches 2 days ahead)
+    _log(logs, "2026-10-31", [{"status": "scheduled", "publish_at": "2026-11-02T08:00:00-05:00"}])
+    now = datetime(2026, 11, 2, 5, 17, tzinfo=NY)
+    assert media.slots(CFG, now, per_day=1, log_dir=logs)[0]["date"] == "2026-11-02T13:00:00-05:00"
 
 
 def test_metricool_error_today(tmp_path):
@@ -328,3 +336,171 @@ def test_cli_upload_prints_url(repo, tmp_path, capsys):
     assert capsys.readouterr().out.strip() == media.raw_url("2026-11-01", "stocks")
     assert media.main(["upload", "2026-11-01", "stocks", str(tmp_path / "x"),
                        "--repo", str(work)]) == 1
+
+
+
+# ---------------------------------------------------------------- topics
+
+TOPIC_IDS = [f"t{i:02d}" for i in range(12)]
+
+
+def _topic_setup(tmp_path, ids=TOPIC_IDS, sheets=None):
+    tp = tmp_path / "topics.json"
+    tp.write_text(json.dumps([{"id": t, "title_seed": "x"} for t in ids]))
+    facts = tmp_path / "facts"
+    facts.mkdir()
+    for t in (ids if sheets is None else sheets):
+        (facts / f"{t}.md").write_text("- x (source: https://a.gov)\n")
+    logs = tmp_path / "log"
+    logs.mkdir()
+    return logs, tp, facts
+
+
+def _add(logs, day, topic, status="scheduled"):
+    p = logs / f"{day}.json"
+    data = json.loads(p.read_text()) if p.exists() else []
+    data.append({"topic": topic, "status": status})
+    p.write_text(json.dumps(data))
+
+
+def test_topics_six_day_window(tmp_path):
+    logs, tp, facts = _topic_setup(tmp_path)
+    _add(logs, "2026-10-27", "t00")          # 5 days before Nov 1: still excluded
+    _add(logs, "2026-10-26", "t01")          # 6 days before: eligible again
+    _add(logs, "2026-10-26", "t02", "skipped")
+    out = media.topics(logs, tp, facts, today="2026-11-01")
+    assert "t00" not in out and "t01" in out
+    assert out[:2] == ["t03", "t04"]          # never used, never tried come first
+    assert out.index("t02") > out.index("t11") and out[-1] == "t01"   # used longest ago last
+
+
+def test_topics_exclude_tried_today_and_missing_sheet_and_limit(tmp_path, capsys):
+    logs, tp, facts = _topic_setup(tmp_path, sheets=TOPIC_IDS[1:])
+    _add(logs, "2026-11-01", "t05", "skipped")
+    out = media.topics(logs, tp, facts, today="2026-11-01")
+    assert "t00" not in out and "t05" not in out and len(out) == 10
+    assert media.topics(logs, tp, facts, today="2026-11-01", n=3) == ["t01", "t02", "t03"]
+    assert media.main(["topics", "--log-dir", str(logs), "--topics", str(tp), "--facts",
+                       str(facts), "--n", "2", "--today", "2026-11-01"]) == 0
+    assert json.loads(capsys.readouterr().out) == ["t01", "t02"]
+
+
+def test_topics_twelve_topics_two_a_day_never_run_dry(tmp_path):
+    from datetime import date, timedelta
+    logs, tp, facts = _topic_setup(tmp_path)
+    start = date(2026, 11, 1)
+    for k in range(60):
+        day = (start + timedelta(days=k)).isoformat()
+        pick = media.topics(logs, tp, facts, today=day, n=4)
+        assert len(pick) >= 2, (day, pick)
+        for t in pick[:2]:
+            _add(logs, day, t)
+
+
+def test_topics_ignore_bad_log_files(tmp_path):
+    logs, tp, facts = _topic_setup(tmp_path)
+    (logs / "2026-10-31.json").write_text("{oops")
+    (logs / "notes.json").write_text(json.dumps([{"topic": "t00", "status": "scheduled"}]))
+    assert len(media.topics(logs, tp, facts, today="2026-11-01")) == 12
+
+
+# ---------------------------------------------------------------- stale
+
+STALE_SHEET = ("# T\n\n- Timeless 2 percent. (source: https://a.gov/x)\n"
+               "- Latest was 3.7 percent. (as of: 2026-10-14) (source: https://a.gov/y)\n")
+
+
+def test_stale_lists_expired_bullets(tmp_path, capsys):
+    f = tmp_path / "f.md"
+    f.write_text(STALE_SHEET)
+    assert media.main(["stale", str(f), "--today", "2026-11-28"]) == 0
+    assert capsys.readouterr().out.strip() == "none"
+    assert media.main(["stale", str(f), "--today", "2026-11-29"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert len(out) == 1 and "3.7 percent" in out[0]
+
+
+def test_metadata_numbers_word_numbers_and_expiry(tmp_path):
+    p, f = _meta_script(tmp_path, title="Zorb Counts Fifty Snacks")
+    assert media.metadata_numbers(p, f) == ["50"]
+    p, f = _meta_script(tmp_path)
+    f.write_text("- $100 to $107, 7 percent in 2026. (as of: 2026-01-01) (source: https://a.gov)\n")
+    assert media.metadata_numbers(p, f, today="2026-11-01") == ["100", "7"]
+    assert media.metadata_numbers(p, f, today="2026-01-02") == []
+
+
+# ---------------------------------------------------------------- payload
+
+DESC = 'Zorb finds "prices" rise.\n\nEducation, not financial advice.\n\n#Shorts #inflation #money'
+URL = "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-02/inflation.mp4"
+
+
+def _payload_setup(tmp_path, ok=True, video=True):
+    sp = tmp_path / "script.json"
+    sp.write_text(json.dumps({"topic": "inflation", "title": "Zorb Learns Why $100 Buys Less",
+                              "description": DESC, "tags": ["inflation", "Zorb"],
+                              "hook_score": 60,
+                              "beats": [{"line": "Hi.", "scene": "shop",
+                                         "expression": "neutral", "props": {}}]}))
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "report.json").write_text(json.dumps({"ok": ok, "checks": [], "error": None}))
+    if video:
+        (out / "video.mp4").write_bytes(b"x")
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({**CFG, "blog_id": "7783344"}))
+    return sp, out / "report.json", cfg
+
+
+def test_payload_exact_arguments(tmp_path, capsys):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    assert media.main(["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp),
+                       "--config", str(cfg)]) == 0
+    args = json.loads(capsys.readouterr().out)
+    assert set(args) == {"blogId", "date", "info"}
+    assert args["blogId"] == "7783344" and args["date"] == "2026-11-02T08:00:00-05:00"
+    assert isinstance(args["info"], str)
+    info = json.loads(args["info"])
+    assert info == {
+        "providers": [{"network": "youtube"}], "text": DESC, "media": [URL],
+        "publicationDate": {"dateTime": "2026-11-02T08:00:00", "timezone": "America/New_York"},
+        "autoPublish": True, "draft": False, "descendants": [], "firstCommentText": "",
+        "hasNotReadNotes": False, "mediaAltText": [], "shortener": False,
+        "smartLinkData": {"ids": []},
+        "youtubeData": {"title": "Zorb Learns Why $100 Buys Less", "type": "short",
+                        "privacy": "public", "tags": ["inflation", "Zorb"],
+                        "category": "EDUCATION", "madeForKids": False,
+                        "isAiGeneratedContent": False}}
+
+
+def test_payload_draft_flag(tmp_path):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    args = media.payload(sp, "2026-07-02T19:00:00-04:00", URL, rp, config_path=cfg, draft=True)
+    info = json.loads(args["info"])
+    assert info["draft"] is True and info["publicationDate"]["dateTime"] == "2026-07-02T19:00:00"
+
+
+def test_payload_refuses_unless_report_ok_and_video_present(tmp_path, capsys):
+    sp, rp, cfg = _payload_setup(tmp_path, ok=False)
+    assert media.main(["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp),
+                       "--config", str(cfg)]) == 1
+    assert "ok" in capsys.readouterr().err
+    for kw in ({"ok": True, "video": False},):
+        d = tmp_path / "b"
+        d.mkdir()
+        sp, rp, cfg = _payload_setup(d, **kw)
+        with pytest.raises(media.MediaError, match="video.mp4"):
+            media.payload(sp, "2026-11-02T08:00:00-05:00", URL, rp, config_path=cfg)
+    rp.unlink()
+    with pytest.raises((media.MediaError, OSError)):
+        media.payload(sp, "2026-11-02T08:00:00-05:00", URL, rp, config_path=cfg)
+
+
+def test_payload_rejects_bad_slot_and_url(tmp_path):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    for bad in ("2026-11-02T08:00:00", "2026-11-02T13:00:00+00:00", "tomorrow"):
+        with pytest.raises(media.MediaError, match="slot"):
+            media.payload(sp, bad, URL, rp, config_path=cfg)
+    for bad in ("http://example.com/x.mp4", URL.replace("inflation.mp4", "stocks.mp4")):
+        with pytest.raises(media.MediaError, match="url"):
+            media.payload(sp, "2026-11-02T08:00:00-05:00", bad, rp, config_path=cfg)
