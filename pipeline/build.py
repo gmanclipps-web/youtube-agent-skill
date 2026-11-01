@@ -1,4 +1,4 @@
-"""CLI: script.json -> video.mp4 + report.json.
+"""CLI: script.json -> video.mp4 + thumbnail.jpg + report.json.
 
     python3 -m pipeline.build <script.json> <outdir> [--recent channel/log] [--facts channel/facts]
                               [--today YYYY-MM-DD]
@@ -6,7 +6,9 @@
 Content checks (hook, metadata, facts, variety) run first; if any fails the
 voice is never called. Exit 0 only if every check passes. "Today" (for the
 title window and for expiring "(as of: ...)" fact bullets) defaults to the
-America/New_York date.
+America/New_York date. After every check passes, the Shorts cover is
+rendered as thumbnail.jpg next to video.mp4; if that fails the build fails and
+video.mp4 is removed (a video is never left publishable without its cover).
 """
 import argparse
 import json
@@ -24,10 +26,12 @@ from pipeline.captions import caption_text, chunk_words
 from pipeline.checks import (CheckResult, check_facts, check_hook, check_metadata,
                              check_technical, check_variety)
 from pipeline.script_schema import load_script
+from pipeline.thumbnail import H as THUMB_H, W as THUMB_W, render_thumbnail
 from pipeline.voice import VoiceError, synthesize
 
 TITLE_DAYS = 30
 SCENE_VIDEOS = 10
+THUMBNAIL = "thumbnail.jpg"
 _DATED = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
 
 
@@ -102,7 +106,8 @@ def content_checks(script, facts_dir, recent_dir, today=None) -> list:
 
 def _write_report(outdir: Path, ok, checks, duration, scenes, error):
     report = {"ok": bool(ok), "checks": [asdict(c) for c in checks],
-              "duration": round(float(duration), 3), "scenes": scenes, "error": error}
+              "duration": round(float(duration), 3), "scenes": scenes, "error": error,
+              "thumbnail": THUMBNAIL if ok else None}
     tmp = outdir / ".report.json.part"
     tmp.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, outdir / "report.json")
@@ -113,7 +118,8 @@ def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None, today
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     video = outdir / "video.mp4"
-    for stale in (video, outdir / "video.failed.mp4", outdir / "report.json"):
+    thumb = outdir / THUMBNAIL
+    for stale in (video, thumb, outdir / "video.failed.mp4", outdir / "report.json"):
         stale.unlink(missing_ok=True)
     try:
         script = load_script(script_path)
@@ -144,7 +150,23 @@ def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None, today
         os.replace(video, outdir / "video.failed.mp4")
         return _write_report(outdir, False, checks, duration, scenes,
                              "technical check failed")
+    try:
+        _render_cover(script, thumb)
+    except Exception as e:   # no cover -> nothing publishable
+        video.unlink(missing_ok=True)
+        thumb.unlink(missing_ok=True)
+        return _write_report(outdir, False, checks, duration, scenes, f"thumbnail failed: {e}")
     return _write_report(outdir, True, checks, duration, scenes, None)
+
+
+def _render_cover(script, thumb: Path):
+    """Render the cover and make sure it is a real 1080x1920 JPEG."""
+    from PIL import Image
+    render_thumbnail(script, thumb)
+    with Image.open(thumb) as im:
+        if im.format != "JPEG" or im.size != (THUMB_W, THUMB_H):
+            raise ValueError(f"cover is {im.format} {im.size[0]}x{im.size[1]}, "
+                             f"need JPEG {THUMB_W}x{THUMB_H}")
 
 
 def main(argv=None) -> int:

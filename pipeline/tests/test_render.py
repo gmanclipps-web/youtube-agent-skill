@@ -349,3 +349,72 @@ def test_build_default_today_is_new_york_date(tmp_path, monkeypatch):
     (log / "2026-10-02.json").write_text(json.dumps([{"title": "Edge", "scenes": ["shop"]}]))
     titles, _ = build.load_recent(log)
     assert [e["title"] for e in titles] == ["Edge"]   # 30 days before Nov 1, not Nov 2
+
+
+# ---------------------------------------------------------------- cover image
+
+def _fake_voice_ok(monkeypatch):
+    def fake(beats, workdir):
+        Path(workdir).mkdir(parents=True, exist_ok=True)
+        wav = _sine_wav(Path(workdir) / "voice.wav", 2.0)
+        words = [{"word": w, "start": 0.2 + i * 0.3, "end": 0.45 + i * 0.3, "beat": 0}
+                 for i, w in enumerate("Snacks cost 1 then 1.50.".split())]
+        return wav, words
+    monkeypatch.setattr(build, "synthesize", fake)
+
+
+def test_build_renders_thumbnail_next_to_video(tmp_path, monkeypatch):
+    from PIL import Image
+    _fake_voice_ok(monkeypatch)
+    sp, fd = _setup(tmp_path)
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 0
+    rep = json.loads((out / "report.json").read_text())
+    assert rep["ok"] is True and rep["thumbnail"] == "thumbnail.jpg"
+    im = Image.open(out / "thumbnail.jpg")
+    assert im.format == "JPEG" and im.size == (1080, 1920)
+    assert (out / "video.mp4").exists()
+
+
+def test_build_thumbnail_failure_removes_video(tmp_path, monkeypatch):
+    _fake_voice_ok(monkeypatch)
+
+    def boom(script, out):
+        Path(out).write_bytes(b"half a jpeg")
+        raise OSError("disk full")
+    monkeypatch.setattr(build, "render_thumbnail", boom)
+    sp, fd = _setup(tmp_path)
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1
+    rep = json.loads((out / "report.json").read_text())
+    assert rep["ok"] is False and rep["error"].startswith("thumbnail failed: ")
+    assert "disk full" in rep["error"] and rep["thumbnail"] is None
+    assert [c["name"] for c in rep["checks"]][-1] == "technical"
+    assert not (out / "video.mp4").exists() and not (out / "thumbnail.jpg").exists()
+
+
+def test_build_thumbnail_not_a_cover_fails(tmp_path, monkeypatch):
+    _fake_voice_ok(monkeypatch)
+    from PIL import Image
+
+    def tiny(script, out):
+        Image.new("RGB", (10, 10)).save(out, "JPEG")
+        return Path(out)
+    monkeypatch.setattr(build, "render_thumbnail", tiny)
+    sp, fd = _setup(tmp_path)
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1
+    rep = json.loads((out / "report.json").read_text())
+    assert rep["error"].startswith("thumbnail failed: ") and "1080x1920" in rep["error"]
+    assert not (out / "video.mp4").exists() and not (out / "thumbnail.jpg").exists()
+
+
+def test_build_clears_stale_thumbnail(tmp_path, monkeypatch):
+    calls = _no_voice(monkeypatch)
+    sp, fd = _setup(tmp_path, facts="Snacks went from 1 to 2.")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "thumbnail.jpg").write_bytes(b"old")
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1 and calls == []
+    assert not (out / "thumbnail.jpg").exists()
+    assert json.loads((out / "report.json").read_text())["thumbnail"] is None
