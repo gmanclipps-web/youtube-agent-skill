@@ -36,7 +36,7 @@ def _sine_wav(path, seconds=2.0, sr=48000):
 def _script(**over):
     s = {"topic": "inflation", "title": "Why Earth Snacks Cost More",
          "description": f"Zorb learns about prices. {DISC}", "tags": ["money"],
-         "hook_score": 70,
+         "hook_score": 70, "thumb_text": "PRICES JUMPED?!",
          "beats": [{"line": "Earth snacks cost more.", "scene": "price_tag",
                     "expression": "confused", "props": {"from": "1", "to": "1.50"}}]}
     s.update(over)

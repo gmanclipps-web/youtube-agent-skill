@@ -7,7 +7,7 @@ DISC = "Education, not financial advice."
 def script(lines=("Hello.",), scenes=None, **over):
     scenes = scenes or ["shop"] * len(lines)
     s = {"topic": "t", "title": "Zorb Discovers Inflation", "description": f"About money. {DISC}",
-         "tags": ["a"], "hook_score": 60,
+         "tags": ["a"], "hook_score": 60, "thumb_text": "PRICES JUMPED?!",
          "beats": [{"line": l, "scene": sc, "expression": "neutral", "props": {}}
                    for l, sc in zip(lines, scenes)]}
     s.update(over)

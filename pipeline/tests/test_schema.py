@@ -5,7 +5,7 @@ from pipeline.script_schema import load_script, SCENES, EXPRESSIONS
 
 def _script(**over):
     s = {"topic": "inflation", "title": "T", "description": "D", "tags": ["a"],
-         "hook_score": 61,
+         "hook_score": 61, "thumb_text": "PRICES JUMPED?!",
          "beats": [{"line": "Hi.", "scene": "shop", "expression": "neutral", "props": {}}]}
     s.update(over)
     return s
@@ -66,3 +66,31 @@ def test_load_script_tags_must_be_non_empty_strings(tmp_path):
         with pytest.raises(ValueError, match="tags"):
             load_script(_write(tmp_path, _script(tags=bad)))
     assert load_script(_write(tmp_path, _script(tags=["a", "b c"])))["tags"] == ["a", "b c"]
+
+
+def test_load_script_requires_thumb_text_of_one_to_three_words(tmp_path):
+    s = _script()
+    del s["thumb_text"]
+    with pytest.raises(ValueError, match="thumb_text"):
+        load_script(_write(tmp_path, s))
+    for bad in ("", "   ", "ONE TWO THREE FOUR", 5, None, ["WOW"]):
+        with pytest.raises(ValueError, match="thumb_text"):
+            load_script(_write(tmp_path, _script(thumb_text=bad)))
+    for good in ("WOW", "WAIT WHAT?!", "SNACKS COST MORE?!"):
+        assert load_script(_write(tmp_path, _script(thumb_text=good)))["thumb_text"] == good
+
+
+def test_load_script_thumb_expression_optional_but_known(tmp_path):
+    assert "thumb_expression" not in load_script(_write(tmp_path, _script()))
+    for e in EXPRESSIONS:
+        assert load_script(_write(tmp_path, _script(thumb_expression=e)))["thumb_expression"] == e
+    for bad in ("angry", "", None, 3):
+        with pytest.raises(ValueError, match="thumb_expression"):
+            load_script(_write(tmp_path, _script(thumb_expression=bad)))
+
+
+def test_sample_script_loads_with_cover_fields():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    s = load_script(str(root / "channel/samples/inflation/script.json"))
+    assert s["thumb_text"] == "SNACKS COST MORE?!" and s["thumb_expression"] == "confused"

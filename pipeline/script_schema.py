@@ -10,12 +10,23 @@ def _is_number(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
+def _check_cover(script):
+    """thumb_text: 1-3 words (the Shorts cover); thumb_expression: optional, in EXPRESSIONS."""
+    from pipeline.thumbnail import thumb_words   # lazy: thumbnail -> scenes -> this module
+    text = script["thumb_text"]
+    if not isinstance(text, str):
+        raise ValueError("field thumb_text must be a string")
+    thumb_words(text)                             # ValueError naming thumb_text
+    if "thumb_expression" in script and script["thumb_expression"] not in EXPRESSIONS:
+        raise ValueError(f"thumb_expression {script['thumb_expression']!r} not in {EXPRESSIONS}")
+
+
 def load_script(path: str) -> dict:
     with open(path, encoding="utf-8") as f:
         script = json.load(f)
     if not isinstance(script, dict):
         raise ValueError("script must be a JSON object")
-    for key in ("topic", "title", "description", "tags", "hook_score", "beats"):
+    for key in ("topic", "title", "description", "tags", "hook_score", "thumb_text", "beats"):
         if key not in script:
             raise ValueError(f"missing required field: {key}")
     for key in ("topic", "title", "description"):
@@ -26,6 +37,7 @@ def load_script(path: str) -> dict:
     for i, tag in enumerate(script["tags"]):
         if not isinstance(tag, str) or not tag.strip():
             raise ValueError(f"tags[{i}] must be a non-empty string")
+    _check_cover(script)
     if not _is_number(script["hook_score"]):
         raise ValueError("field hook_score must be a number")
     beats = script["beats"]
