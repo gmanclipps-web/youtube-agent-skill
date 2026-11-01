@@ -29,6 +29,8 @@ CAP_LEFT, CAP_RIGHT = 110, 950
 CAP_PAD_X, CAP_PAD_Y = 34, 22
 CAP_MAX_SIZE, CAP_MIN_SIZE = 104, 56
 CAP_ONE_LINE_MIN = 80
+CAP_FLOOR = 40
+ELLIPSIS = "\u2026"
 CAP_HOLD = 0.35          # keep a caption up through short pauses (s)
 ZORB_CENTER = (540, 1660)
 BLINK_EVERY = 105        # frames (3.5 s)
@@ -149,11 +151,13 @@ def _layout(words: list[str], size: int, max_w: int):
 
 def caption_layout(texts: list[str]):
     """Pick a font size for the chunk inside the band: one line if it fits at
-    CAP_ONE_LINE_MIN px or more, else the largest size that fits in two lines.
+    CAP_ONE_LINE_MIN px or more, else the largest size that fits in two lines,
+    else as many lines as fit down to CAP_FLOOR px, else CAP_FLOOR px with the
+    overflow cut and "…" appended. Text never leaves the band.
     Returns (size, lines, space, line_h)."""
     max_w = CAP_RIGHT - CAP_LEFT - 2 * CAP_PAD_X
     max_h = CAP_BOTTOM - CAP_TOP - 2 * CAP_PAD_Y
-    for max_lines, floor in ((1, CAP_ONE_LINE_MIN), (2, CAP_MIN_SIZE)):
+    for max_lines, floor in ((1, CAP_ONE_LINE_MIN), (2, CAP_MIN_SIZE), (99, CAP_FLOOR)):
         size = CAP_MAX_SIZE
         while size >= floor:
             lines, space = _layout(texts, size, max_w)
@@ -162,9 +166,29 @@ def caption_layout(texts: list[str]):
             if len(lines) <= max_lines and widest <= max_w and len(lines) * line_h <= max_h:
                 return size, lines, space, line_h
             size -= 4
-    # long chunks: smallest size, wrapped onto as many lines as needed (3 fit the band)
-    lines, space = _layout(texts, CAP_MIN_SIZE, max_w)
-    return CAP_MIN_SIZE, lines, space, int(CAP_MIN_SIZE * 1.18)
+    size, line_h = CAP_FLOOR, int(CAP_FLOOR * 1.18)
+    f = font(size)
+    fit_lines = max(1, max_h // line_h)
+    words = list(texts)
+    while words:
+        shown = words[:-1] + [_clip(f, words[-1], max_w)]
+        if len(words) < len(texts):
+            shown[-1] = _clip(f, shown[-1] + ELLIPSIS, max_w)
+        lines, space = _layout(shown, size, max_w)
+        if len(lines) <= fit_lines and max(w for _, w in lines) <= max_w:
+            return size, lines, space, line_h
+        words.pop()
+    lines, space = _layout([ELLIPSIS], size, max_w)
+    return size, lines, space, line_h
+
+
+def _clip(f, word: str, max_w: int) -> str:
+    """Cut a single over-wide word to max_w, ending in an ellipsis."""
+    if f.getlength(word) <= max_w:
+        return word
+    while len(word) > 1 and f.getlength(word + ELLIPSIS) > max_w:
+        word = word[:-1]
+    return word.rstrip(ELLIPSIS) + ELLIPSIS
 
 
 def draw_caption(img: Image.Image, texts: list[str], current: int, pal: dict,

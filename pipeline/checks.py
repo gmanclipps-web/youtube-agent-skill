@@ -1,5 +1,6 @@
 """Content checks run before a video is built."""
 import json
+import math
 import re
 import subprocess
 from dataclasses import dataclass
@@ -52,6 +53,30 @@ def _spoken(script: dict) -> str:
     return " ".join(b["line"] for b in script["beats"])
 
 
+def _prop_strings(v):
+    """Every string and number inside a props value (dicts and lists walked)."""
+    if isinstance(v, bool) or v is None:
+        return
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, int):
+        yield str(v)
+    elif isinstance(v, float):
+        if math.isfinite(v):
+            yield str(int(v)) if v.is_integer() else f"{v:f}"
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from _prop_strings(x)
+    elif isinstance(v, (list, tuple)):
+        for x in v:
+            yield from _prop_strings(x)
+
+
+def _props_text(script: dict) -> str:
+    """All prop values of all beats as text: numbers the scenes put on screen."""
+    return " ".join(s for b in script["beats"] for s in _prop_strings(b.get("props", {})))
+
+
 def check_facts(script: dict, facts_text: str) -> CheckResult:
     spoken = _spoken(script)
     problems = []
@@ -59,9 +84,13 @@ def check_facts(script: dict, facts_text: str) -> CheckResult:
     hits = [p for p in BANNED_PHRASES if p in lowered]
     if hits:
         problems.append("banned phrase: " + ", ".join(hits))
-    unknown = sorted(normalise_numbers(spoken) - _fact_numbers(facts_text))
+    sheet = _fact_numbers(facts_text)
+    unknown = sorted(normalise_numbers(spoken) - sheet)
     if unknown:
         problems.append("numbers not in fact sheet: " + ", ".join(unknown))
+    on_screen = sorted(normalise_numbers(_props_text(script)) - sheet)
+    if on_screen:
+        problems.append("on screen (props) numbers not in fact sheet: " + ", ".join(on_screen))
     if problems:
         return CheckResult("facts", False, "; ".join(problems))
     return CheckResult("facts", True, "all numbers on fact sheet, no banned phrases")

@@ -74,3 +74,17 @@ def test_facts_ignore_numbers_in_urls_and_list_markers():
 def test_facts_dollar_thousand_vs_plain():
     assert check_facts(script(["Save $1,000 this year."]), "Goal: 1000 dollars.").ok
     assert check_facts(script(["It cost $1.50."]), "Price 1.5").ok
+
+
+def test_facts_checks_numbers_in_props():
+    s = script(["Prices went up."])
+    s["beats"][0]["props"] = {"from": "1", "to": "9.99"}
+    r = check_facts(s, "Snack went from 1 to 1.50.")
+    assert not r.ok and "9.99" in r.detail and "on screen" in r.detail
+    s["beats"][0]["props"] = {"from": 1, "to": "$1.50", "label": "SNACKS", "trend": "up"}
+    assert check_facts(s, "Snack went from 1 to 1.50.").ok
+    s["beats"][0]["props"] = {"amount": 1000.0, "nested": [{"apr": 22}]}
+    r = check_facts(s, "1,000 saved")
+    assert not r.ok and "22" in r.detail
+    s["beats"][0]["props"] = {"open": True}
+    assert check_facts(s, "").ok

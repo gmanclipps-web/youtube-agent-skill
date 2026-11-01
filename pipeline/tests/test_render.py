@@ -90,6 +90,46 @@ def test_render_failure_leaves_no_video(tmp_path, monkeypatch):
     assert list(tmp_path.glob("*.mp4")) == []
 
 
+def test_render_midway_failure_leaves_no_partial(tmp_path, monkeypatch):
+    wav = _sine_wav(tmp_path / "v.wav", 1.0)
+    real = render.Frames.draw
+
+    def draw(self, f):
+        if f == 3:
+            raise RuntimeError("paint blew up")
+        return real(self, f)
+    monkeypatch.setattr(render.Frames, "draw", draw)
+    with pytest.raises(render.RenderError, match="paint blew up"):
+        render.render(_script(), WORDS, wav, tmp_path / "video.mp4")
+    left = [p.name for p in tmp_path.iterdir() if p.name.endswith((".part", ".mp4"))]
+    assert left == []
+
+
+def test_caption_never_leaves_band():
+    from PIL import Image
+    words = ("this caption chunk is far too long to fit on "
+             "without help").split()
+    assert len(words) == 12
+    size, lines, _, line_h = render.caption_layout(words)
+    assert size >= 40
+    assert len(lines) * line_h <= render.CAP_BOTTOM - render.CAP_TOP - 2 * render.CAP_PAD_Y
+    pal = {"bg": (20, 20, 40), "fg": (200, 200, 220), "accent": (250, 220, 60),
+           "text": (250, 250, 255)}
+    img = Image.new("RGB", (1080, 1920), pal["bg"])
+    render.draw_caption(img, words, 0, pal)
+    a = np.asarray(img)
+    outside = np.ones(a.shape[:2], bool)
+    outside[render.CAP_TOP:render.CAP_BOTTOM, render.CAP_LEFT:render.CAP_RIGHT] = False
+    assert (a[outside] == np.array(pal["bg"])).all()
+    longer = words * 6
+    size, lines, _, line_h = render.caption_layout(longer)
+    assert len(lines) * line_h <= render.CAP_BOTTOM - render.CAP_TOP - 2 * render.CAP_PAD_Y
+    assert lines[-1][0][-1][1].endswith("…")
+    img = Image.new("RGB", (1080, 1920), pal["bg"])
+    render.draw_caption(img, longer, 70, pal)
+    assert (np.asarray(img)[outside] == np.array(pal["bg"])).all()
+
+
 def _lavfi(path, seconds, audio=True, size="1080x1920"):
     args = ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
             "-i", f"color=c=black:s={size}:r=30:d={seconds}"]
@@ -262,3 +302,20 @@ def test_build_technical_failure_hides_video(tmp_path, monkeypatch):
     tech = [c for c in rep["checks"] if c["name"] == "technical"][0]
     assert not tech["ok"] and "captions differ" in tech["detail"]
     assert not (out / "video.mp4").exists() and (out / "video.failed.mp4").exists()
+
+
+def test_build_unexpected_error_reports(tmp_path, monkeypatch):
+    def fake(beats, workdir):
+        Path(workdir).mkdir(parents=True, exist_ok=True)
+        return _sine_wav(Path(workdir) / "voice.wav", 1.0), WORDS
+
+    def boom(*a, **k):
+        raise KeyError("scene")
+    monkeypatch.setattr(build, "synthesize", fake)
+    monkeypatch.setattr(build.render_mod, "render", boom)
+    sp, fd = _setup(tmp_path)
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1
+    rep = json.loads((out / "report.json").read_text())
+    assert rep["ok"] is False and rep["error"] == "build failed: KeyError('scene')"
+    assert not (out / "video.mp4").exists()

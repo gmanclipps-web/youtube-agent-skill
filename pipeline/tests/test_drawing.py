@@ -168,3 +168,24 @@ def test_palette_contrast_over_many_topics():
     for i in range(300):
         pal = scenes.palette(f"topic-{i}")
         assert _contrast(pal["text"], pal["bg"]) >= 4.5
+
+
+@pytest.mark.parametrize("scene", SCENES)
+def test_missing_numeric_props_draw_no_invented_numbers(scene, monkeypatch):
+    """With props={} no painter writes a number that the script didn't supply.
+    (Calendar day numbers 1-31 on the grid are part of the calendar art.)"""
+    drawn = []
+    real = scenes.Pen.text
+
+    def spy(self, x, y, s, size, *a, **k):
+        drawn.append((s, size))
+        return real(self, x, y, s, size, *a, **k)
+    monkeypatch.setattr(scenes.Pen, "text", spy)
+    scenes._card.cache_clear()   # cached card face must be redrawn through the spy
+    pal = scenes.palette("x")
+    for p in (0.0, 0.5, 0.8, 1.0):
+        scenes.SCENE_PAINTERS[scene](_blank(pal["bg"]), {}, p, pal)
+    import re
+    bad = [s for s, size in drawn if re.search(r"\d", s)
+           and not (scene == "calendar" and size == 30 and s.isdigit() and 1 <= int(s) <= 31)]
+    assert bad == [], f"{scene} drew invented numbers {sorted(set(bad))[:5]}"

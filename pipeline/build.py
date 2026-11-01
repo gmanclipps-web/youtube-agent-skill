@@ -117,6 +117,10 @@ def build(script_path, outdir, facts_dir="channel/facts", recent_dir=None) -> di
         return _write_report(outdir, False, checks, 0.0, scenes, f"voice failed: {e}")
     except (render_mod.RenderError, OSError, ValueError) as e:
         return _write_report(outdir, False, checks, 0.0, scenes, f"render failed: {e}")
+    except Exception as e:  # anything unexpected: still a clean failed report
+        if video.exists():
+            video.unlink()
+        return _write_report(outdir, False, checks, 0.0, scenes, f"build failed: {e!r}")
     spoken = " ".join(b["line"] for b in script["beats"])
     tech = check_technical(video, spoken, caption_text(chunk_words(words)))
     checks.append(tech)

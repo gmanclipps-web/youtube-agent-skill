@@ -132,6 +132,9 @@ def _text(v, default, limit=14):
     return default
 
 
+UNKNOWN = "?"   # shown where a number would go but the script supplied none
+
+
 def _fmt(x, decimals):
     return f"{x:,.{decimals}f}"
 
@@ -308,10 +311,10 @@ def shop(pen, props, p, pal, layer):
     """A little Earth shop; an item drops onto the counter and its price pops up.
 
     props: ``item`` (label on the box, default "SNACKS"), ``price`` (text on the
-    price burst, default "$2").
+    price burst; when absent the burst shows "?", never an invented number).
     """
     item = _text(props.get("item"), "SNACKS", 10)
-    price = _text(props.get("price"), "$2", 8)
+    price = _text(props.get("price"), UNKNOWN, 8)
     ink = _ink(pal)
     wall = mix(pal["fg"], pal["bg"], 0.12)
     pen.rect(0, 975, W, 1010, fill=mix(pal["bg"], (0, 0, 0), 0.3))           # pavement
@@ -359,16 +362,18 @@ def shop(pen, props, p, pal, layer):
 def price_tag(pen, props, p, pal, layer):
     """A giant price tag whose number climbs (or falls) from ``from`` to ``to``.
 
-    props: ``from`` (start price, default "1"), ``to`` (end price, default
-    "1.50"), ``currency`` (prefix, default "$"). The old price is struck out;
-    a red up-arrow (or green down-arrow) shows the direction.
+    props: ``from`` (start price), ``to`` (end price), ``currency`` (prefix,
+    default "$"). With both, the old price is struck out while the new one
+    counts to it and an arrow shows the direction. With only one, that price
+    is shown still; with neither, the tag reads "$?" (no invented numbers).
     """
-    a = _num(props.get("from"), 1.0)
-    b = _num(props.get("to"), 1.5)
-    if props.get("to") is None and props.get("from") is not None:
-        b = a * 1.5
-    dec = max(_decimals(props.get("from", "1")), _decimals(props.get("to", "1.50")))
-    if dec == 0 and (a != int(a) or b != int(b)):
+    a = _num(props.get("from"), None)
+    b = _num(props.get("to"), None)
+    both = a is not None and b is not None
+    if not both:
+        a = b = a if a is not None else b
+    dec = max(_decimals(props.get("from")), _decimals(props.get("to")))
+    if a is not None and dec == 0 and (a != int(a) or b != int(b)):
         dec = 2
     cur = props.get("currency") if isinstance(props.get("currency"), str) else "$"
     cur = cur[:3]
@@ -382,22 +387,28 @@ def price_tag(pen, props, p, pal, layer):
     pen.polygon([(352, 318 + bob), (852, 318 + bob), (852, 792 + bob), (352, 792 + bob),
                  (196, 555 + bob)], outline=mix(pal["fg"], ink, 0.25), width=3)
     pen.circle(285, 555 + bob, 30, fill=pal["bg"], outline=ink, width=6)
-    t = ease_in_out(_seg(p, 0.1, 0.85))
-    val = a + (b - a) * t
-    rising = b >= a
-    # old price, struck through progressively
-    old = f"{cur}{_fmt(a, dec)}"
-    pen.text(610, 400 + bob, old, 64, mix(pal["fg"], ink, 0.55), max_w=380)
-    ow = min(380, font(fit(old, 64, 380)).getlength(old))
-    sx = ease_out(_seg(p, 0.0, 0.3))
-    if sx > 0.01:
-        pen.stroke([(610 - ow / 2 - 10, 402 + bob), (610 - ow / 2 - 10 + (ow + 20) * sx, 402 + bob)],
-                   RED, 8)
+    t = ease_in_out(_seg(p, 0.1, 0.85)) if both else 0.0
+    rising = not both or b >= a
+    if both:
+        # old price, struck through progressively
+        old = f"{cur}{_fmt(a, dec)}"
+        pen.text(610, 400 + bob, old, 64, mix(pal["fg"], ink, 0.55), max_w=380)
+        ow = min(380, font(fit(old, 64, 380)).getlength(old))
+        sx = ease_out(_seg(p, 0.0, 0.3))
+        if sx > 0.01:
+            pen.stroke([(610 - ow / 2 - 10, 402 + bob),
+                        (610 - ow / 2 - 10 + (ow + 20) * sx, 402 + bob)], RED, 8)
     col = mix(ink, (200, 40, 40) if rising else (30, 140, 70), t)
-    pop = 1 + 0.06 * math.sin(_seg(p, 0.1, 0.85) * math.pi * 6) * (1 - t)
-    pen.text(610, 600 + bob, f"{cur}{_fmt(val, dec)}", 190 * pop, col, max_w=470)
+    if both:
+        pop = 1 + 0.06 * math.sin(_seg(p, 0.1, 0.85) * math.pi * 6) * (1 - t)
+    else:   # a single (or unknown) price pops onto the tag
+        pop = ease_back(_seg(p, 0.0, 0.3))
+    shown = UNKNOWN if a is None else _fmt(a + (b - a) * t, dec)
+    if pop > 0.01:
+        pen.text(610, 600 + bob, f"{cur}{shown}", max(8, 190 * pop), col,
+                 max_w=max(10, 470 * pop))
     # direction arrow
-    if a != b:
+    if both and a != b:
         ar = ease_back(_seg(p, 0.55, 0.9))
         if ar > 0.01:
             ax, ay, s = 820, 250 + bob, 70 * ar
@@ -490,7 +501,7 @@ def stock_chart(pen, props, p, pal, layer):
     """A trading screen whose price line draws itself left to right.
 
     props: ``trend`` ("up" or "down", default "up"), ``label`` (headline such
-    as "+7%"; default shows the live % change along the line).
+    as "+7%"; default "UP"/"DOWN", never an invented percentage).
     """
     trend = props.get("trend") if props.get("trend") in ("up", "down") else "up"
     ink = _ink(pal)
@@ -523,11 +534,7 @@ def stock_chart(pen, props, p, pal, layer):
     pen.circle(ex, ey, 22 + 4 * math.sin(p * 20), fill=mix(panel, col, 0.45))
     pen.circle(ex, ey, 12, fill=WHITE, outline=col, width=4)
     pen.line([(gx0, gy1), (gx1, gy1)], mix(panel, pal["fg"], 0.4), 4)
-    label = _text(props.get("label"), None, 8)
-    if label is None:
-        cur = vals[0] + (vals[-1] - vals[0]) * (t / (len(pts) - 1))
-        pct = (cur - vals[0]) * 2.0
-        label = f"{'+' if pct >= 0 else '-'}{abs(pct):.0f}%"
+    label = _text(props.get("label"), trend.upper(), 8)
     pen.text(180, 236, label, 64, col, anchor="lm", max_w=420)
     # mini arrow icon
     ax, ay = 820, 236
@@ -553,7 +560,7 @@ def _card(accent, ink):
     pen.line([(120, 110), (120, 185)], GOLD_DARK, 3)
     for i, rr in enumerate((18, 32, 46)):
         pen.arc(210 - rr, 148 - rr, 210 + rr, 148 + rr, -50, 50, WHITE, 5)
-    pen.text(60, 260, "**** **** **** 4242", 46, WHITE, anchor="lm", mono=True)
+    pen.text(60, 260, "**** **** **** ****", 46, WHITE, anchor="lm", mono=True)
     pen.text(60, 390, "ZORB Z. ALIEN", 32, WHITE, anchor="lm")
     pen.circle(580, 385, 36, fill=(235, 60, 60))
     pen.circle(628, 385, 36, fill=(250, 170, 40))
@@ -568,16 +575,16 @@ def _card(accent, ink):
 def credit_card(pen, props, p, pal, layer):
     """A credit card slides in, an APR badge pops and the balance counts up.
 
-    props: ``apr`` (badge text, default "22%"; numbers get a "%" added),
-    ``balance`` (final balance, default "500"), ``currency`` (default "$").
+    props: ``apr`` (badge text; numbers get a "%" added; "?" when absent),
+    ``balance`` (final balance; "$?" when absent), ``currency`` (default "$").
     """
     apr_v = props.get("apr")
     if _num(apr_v, None) is not None and not isinstance(apr_v, str):
         apr = f"{apr_v:g}%"[:6]
     else:
-        apr = _text(apr_v, "22%", 6)
-    bal = _num(props.get("balance"), 500.0)
-    dec = _decimals(props.get("balance", "500"))
+        apr = _text(apr_v, UNKNOWN, 6)
+    bal = _num(props.get("balance"), None)
+    dec = _decimals(props.get("balance"))
     cur = props.get("currency") if isinstance(props.get("currency"), str) else "$"
     ink = _ink(pal)
     slide = ease_back(_seg(p, 0.0, 0.35))
@@ -590,8 +597,8 @@ def credit_card(pen, props, p, pal, layer):
     # balance panel
     pen.rrect(190, 740, 850, 960, 30, fill=pal["fg"], outline=ink, width=6)
     pen.text(CX, 790, "BALANCE", 40, mix(pal["fg"], ink, 0.6))
-    v = bal * ease_out(_seg(p, 0.3, 1.0))
-    pen.text(CX, 880, f"{cur}{_fmt(v, dec)}", 110, mix(ink, (200, 40, 40), _seg(p, 0.3, 1.0)),
+    shown = UNKNOWN if bal is None else _fmt(bal * ease_out(_seg(p, 0.3, 1.0)), dec)
+    pen.text(CX, 880, f"{cur}{shown}", 110, mix(ink, (200, 40, 40), _seg(p, 0.3, 1.0)),
              max_w=600)
     # APR badge
     s = ease_back(_seg(p, 0.45, 0.75))
@@ -765,10 +772,11 @@ def _bill(pen, x, y, ink):
 def money_stack(pen, props, p, pal, layer):
     """Stacks of cash grow while the total counts up above them.
 
-    props: ``amount`` (final total, default "100"), ``currency`` (default "$").
+    props: ``amount`` (final total; no total is shown when absent),
+    ``currency`` (default "$").
     """
-    amt = _num(props.get("amount"), 100.0)
-    dec = _decimals(props.get("amount", "100"))
+    amt = _num(props.get("amount"), None)
+    dec = _decimals(props.get("amount"))
     cur = props.get("currency") if isinstance(props.get("currency"), str) else "$"
     ink = _ink(pal)
     g = ease_out(_seg(p, 0.0, 0.85))
@@ -791,9 +799,10 @@ def money_stack(pen, props, p, pal, layer):
     for x, y in ((170, 950), (220, 965), (860, 945), (900, 960)):
         pen.ellipse(x - 34, y - 14, x + 34, y + 14, fill=GOLD, outline=GOLD_DARK, width=4)
         pen.ellipse(x - 34, y - 22, x + 34, y + 6, fill=(255, 216, 96), outline=GOLD_DARK, width=4)
-    v = amt * ease_out(_seg(p, 0.0, 0.9))
-    pen.text(CX, 250, f"{cur}{_fmt(v, dec)}", 150, GOLD, stroke=6, stroke_fill=mix(pal["bg"], (0, 0, 0), 0.5),
-             max_w=700)
+    if amt is not None:
+        v = amt * ease_out(_seg(p, 0.0, 0.9))
+        pen.text(CX, 250, f"{cur}{_fmt(v, dec)}", 150, GOLD, stroke=6,
+                 stroke_fill=mix(pal["bg"], (0, 0, 0), 0.5), max_w=700)
     tw = 0.5 + 0.5 * math.sin(p * math.pi * 6)
     for x, y, sz in ((190, 420, 22), (850, 470, 18), (800, 120, 14), (240, 130, 16)):
         sz *= 0.6 + 0.4 * tw
