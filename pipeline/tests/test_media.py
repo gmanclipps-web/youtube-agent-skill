@@ -38,8 +38,8 @@ def test_slots_future_today():
 def test_slot_too_close_or_past_moves_to_tomorrow():
     now = datetime(2026, 11, 2, 7, 45, tzinfo=NY)   # 15 min before 08:00
     s = media.slots(CFG, now)
-    assert s[0]["date"] == "2026-11-03T08:00:00-05:00"
-    assert s[1]["date"] == "2026-11-02T13:00:00-05:00"
+    assert s[0]["date"] == "2026-11-02T13:00:00-05:00"   # earliest free slot first
+    assert s[1]["date"] == "2026-11-02T19:00:00-05:00"
     now = datetime(2026, 11, 2, 20, 0, tzinfo=NY)
     assert [x["date"][:10] for x in media.slots(CFG, now)] == ["2026-11-03", "2026-11-03"]
 
@@ -504,3 +504,11 @@ def test_payload_rejects_bad_slot_and_url(tmp_path):
     for bad in ("http://example.com/x.mp4", URL.replace("inflation.mp4", "stocks.mp4")):
         with pytest.raises(media.MediaError, match="url"):
             media.payload(sp, "2026-11-02T08:00:00-05:00", bad, rp, config_path=cfg)
+
+
+def test_slots_prefer_later_today_over_rolled_morning_slot():
+    now = datetime(2026, 11, 1, 11, 45, tzinfo=NY)   # 08:00 passed; 13:00 and 19:00 still open
+    s = media.slots(CFG, now, per_day=3)
+    assert [x["date"] for x in s] == ["2026-11-01T13:00:00-05:00",
+                                       "2026-11-01T19:00:00-05:00",
+                                       "2026-11-02T08:00:00-05:00"]

@@ -153,7 +153,7 @@ def slots(config: dict, now=None, per_day=None, log_dir=None) -> list:
     later = sorted(at(local.date() + timedelta(days=k), h, m)
                    for k in range(1, SLOT_LOOKAHEAD + 1) for h, m in hm)
     out, seen = [], set()
-    for when in first + later:
+    for when in sorted(first) + later:
         iso = when.isoformat(timespec="seconds")
         if iso in seen or iso in booked or when - local < MIN_LEAD:
             continue
