@@ -440,9 +440,10 @@ def test_metadata_numbers_word_numbers_and_expiry(tmp_path):
 
 DESC = 'Zorb finds "prices" rise.\n\nEducation, not financial advice.\n\n#Shorts #inflation #money'
 URL = "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-02/inflation.mp4"
+THUMB = URL[:-len("mp4")] + "jpg"
 
 
-def _payload_setup(tmp_path, ok=True, video=True):
+def _payload_setup(tmp_path, ok=True, video=True, thumb=True):
     sp = tmp_path / "script.json"
     sp.write_text(json.dumps({"topic": "inflation", "title": "Zorb Learns Why $100 Buys Less",
                               "description": DESC, "tags": ["inflation", "Zorb"],
@@ -454,6 +455,8 @@ def _payload_setup(tmp_path, ok=True, video=True):
     (out / "report.json").write_text(json.dumps({"ok": ok, "checks": [], "error": None}))
     if video:
         (out / "video.mp4").write_bytes(b"x")
+    if thumb:
+        (out / "thumbnail.jpg").write_bytes(b"j")
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps({**CFG, "blog_id": "7783344"}))
     return sp, out / "report.json", cfg
@@ -462,7 +465,7 @@ def _payload_setup(tmp_path, ok=True, video=True):
 def test_payload_exact_arguments(tmp_path, capsys):
     sp, rp, cfg = _payload_setup(tmp_path)
     assert media.main(["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp),
-                       "--config", str(cfg)]) == 0
+                       "--thumb", THUMB, "--config", str(cfg)]) == 0
     args = json.loads(capsys.readouterr().out)
     assert set(args) == {"blogId", "date", "info"}
     assert args["blogId"] == "7783344" and args["date"] == "2026-11-02T08:00:00-05:00"
@@ -470,6 +473,7 @@ def test_payload_exact_arguments(tmp_path, capsys):
     info = json.loads(args["info"])
     assert info == {
         "providers": [{"network": "youtube"}], "text": DESC, "media": [URL],
+        "videoThumbnailUrl": THUMB,
         "publicationDate": {"dateTime": "2026-11-02T08:00:00", "timezone": "America/New_York"},
         "autoPublish": True, "draft": False, "descendants": [], "firstCommentText": "",
         "hasNotReadNotes": False, "mediaAltText": [], "shortener": False,
@@ -482,7 +486,8 @@ def test_payload_exact_arguments(tmp_path, capsys):
 
 def test_payload_draft_flag(tmp_path):
     sp, rp, cfg = _payload_setup(tmp_path)
-    args = media.payload(sp, "2026-07-02T19:00:00-04:00", URL, rp, config_path=cfg, draft=True)
+    args = media.payload(sp, "2026-07-02T19:00:00-04:00", URL, THUMB, rp, config_path=cfg,
+                         draft=True)
     info = json.loads(args["info"])
     assert info["draft"] is True and info["publicationDate"]["dateTime"] == "2026-07-02T19:00:00"
 
@@ -490,27 +495,27 @@ def test_payload_draft_flag(tmp_path):
 def test_payload_refuses_unless_report_ok_and_video_present(tmp_path, capsys):
     sp, rp, cfg = _payload_setup(tmp_path, ok=False)
     assert media.main(["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp),
-                       "--config", str(cfg)]) == 1
+                       "--thumb", THUMB, "--config", str(cfg)]) == 1
     assert "ok" in capsys.readouterr().err
     for kw in ({"ok": True, "video": False},):
         d = tmp_path / "b"
         d.mkdir()
         sp, rp, cfg = _payload_setup(d, **kw)
         with pytest.raises(media.MediaError, match="video.mp4"):
-            media.payload(sp, "2026-11-02T08:00:00-05:00", URL, rp, config_path=cfg)
+            media.payload(sp, "2026-11-02T08:00:00-05:00", URL, THUMB, rp, config_path=cfg)
     rp.unlink()
     with pytest.raises((media.MediaError, OSError)):
-        media.payload(sp, "2026-11-02T08:00:00-05:00", URL, rp, config_path=cfg)
+        media.payload(sp, "2026-11-02T08:00:00-05:00", URL, THUMB, rp, config_path=cfg)
 
 
 def test_payload_rejects_bad_slot_and_url(tmp_path):
     sp, rp, cfg = _payload_setup(tmp_path)
     for bad in ("2026-11-02T08:00:00", "2026-11-02T13:00:00+00:00", "tomorrow"):
         with pytest.raises(media.MediaError, match="slot"):
-            media.payload(sp, bad, URL, rp, config_path=cfg)
+            media.payload(sp, bad, URL, THUMB, rp, config_path=cfg)
     for bad in ("http://example.com/x.mp4", URL.replace("inflation.mp4", "stocks.mp4")):
         with pytest.raises(media.MediaError, match="url"):
-            media.payload(sp, "2026-11-02T08:00:00-05:00", bad, rp, config_path=cfg)
+            media.payload(sp, "2026-11-02T08:00:00-05:00", bad, THUMB, rp, config_path=cfg)
 
 
 def test_slots_prefer_later_today_over_rolled_morning_slot():
@@ -536,3 +541,65 @@ def test_upload_rejects_other_file_types(repo, tmp_path):
     with pytest.raises(media.MediaError, match="unsupported"):
         media.upload("2026-11-01", "stocks", _mp4(tmp_path, "x.png", b"p"), repo=work,
                      sleep=lambda s: None)
+
+
+def test_payload_cover_url_must_match_topic_and_day(tmp_path):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    slot = "2026-11-02T08:00:00-05:00"
+    other_day = THUMB.replace("2026-11-02", "2026-11-01")
+    for bad in (URL, other_day, THUMB.replace("inflation.jpg", "stocks.jpg"),
+                "https://example.com/inflation.jpg", THUMB + "?x=1", ""):
+        with pytest.raises(media.MediaError, match="cover url"):
+            media.payload(sp, slot, URL, bad, rp, config_path=cfg)
+    with pytest.raises(media.MediaError, match="cover"):
+        media.payload(sp, slot, URL, None, rp, config_path=cfg)
+    assert THUMB == media.raw_url("2026-11-02", "inflation", "jpg")
+
+
+def test_payload_refuses_without_thumbnail_file(tmp_path):
+    sp, rp, cfg = _payload_setup(tmp_path, thumb=False)
+    with pytest.raises(media.MediaError, match="thumbnail.jpg"):
+        media.payload(sp, "2026-11-02T08:00:00-05:00", URL, THUMB, rp, config_path=cfg)
+
+
+def test_payload_cli_needs_thumb_or_no_thumb(tmp_path, capsys):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    base = ["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp), "--config", str(cfg)]
+    with pytest.raises(SystemExit):
+        media.main(base)
+    with pytest.raises(SystemExit):
+        media.main(base + ["--thumb", THUMB, "--no-thumb"])
+    capsys.readouterr()
+    assert media.main(base + ["--thumb", URL]) == 1
+    assert "cover url" in capsys.readouterr().err
+
+
+def test_payload_no_thumb_drops_only_the_cover(tmp_path, capsys):
+    sp, rp, cfg = _payload_setup(tmp_path)
+    base = ["payload", str(sp), "2026-11-02T08:00:00-05:00", URL, str(rp), "--config", str(cfg)]
+    assert media.main(base + ["--thumb", THUMB]) == 0
+    with_cover = json.loads(json.loads(capsys.readouterr().out)["info"])
+    assert media.main(base + ["--no-thumb"]) == 0
+    without = json.loads(json.loads(capsys.readouterr().out)["info"])
+    assert "videoThumbnailUrl" not in without
+    with_cover.pop("videoThumbnailUrl")
+    assert without == with_cover
+    with pytest.raises(media.MediaError, match="cover"):
+        media.payload(sp, "2026-11-02T08:00:00-05:00", URL, THUMB, rp, config_path=cfg,
+                      no_thumb=True)
+
+
+def test_cli_verify_uses_the_files_type(tmp_path, monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(media, "verify", lambda url, f: seen.append(url) or (200, 1))
+    jpg = tmp_path / "thumbnail.jpg"
+    jpg.write_bytes(b"j")
+    assert media.main(["verify", "2026-11-02", "inflation", str(jpg)]) == 0
+    mp4 = tmp_path / "video.mp4"
+    mp4.write_bytes(b"v")
+    assert media.main(["verify", "2026-11-02", "inflation", str(mp4)]) == 0
+    assert seen == [THUMB, URL]
+    capsys.readouterr()
+    png = tmp_path / "x.png"
+    png.write_bytes(b"p")
+    assert media.main(["verify", "2026-11-02", "inflation", str(png)]) == 1

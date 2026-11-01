@@ -6,9 +6,10 @@
     python3 -m pipeline.media stale SHEET [--today DATE]   # expired "(as of: ...)" bullets
     python3 -m pipeline.media slots --per-day N [--config channel/config.json] [--log-dir channel/log]
     python3 -m pipeline.media numbers SCRIPT FACTS [--today DATE]  # title/description/tags/thumb_text numbers on sheet?
-    python3 -m pipeline.media payload SCRIPT SLOT_DATE URL REPORT [--config channel/config.json] [--draft]
-    python3 -m pipeline.media upload DATE TOPIC MP4 [--repo .]   # push mp4 to the media branch
-    python3 -m pipeline.media verify DATE TOPIC MP4        # raw URL serves the same bytes?
+    python3 -m pipeline.media payload SCRIPT SLOT_DATE URL REPORT (--thumb JPG_URL | --no-thumb)
+                                      [--config channel/config.json] [--draft]
+    python3 -m pipeline.media upload DATE TOPIC FILE [--repo .]  # push .mp4/.jpg to the media branch
+    python3 -m pipeline.media verify DATE TOPIC FILE       # raw URL serves the same bytes?
     python3 -m pipeline.media log DATE ENTRY_JSON [--log-dir channel/log]
     python3 -m pipeline.media url DATE TOPIC
 
@@ -230,19 +231,25 @@ def topics(log_dir, topics_path, facts_dir, today=None, n=None) -> list:
 
 # ---------------------------------------------------------------- payload
 
-def payload(script_path, slot_date, url, report_path, config_path="channel/config.json",
-            draft=False) -> dict:
+def payload(script_path, slot_date, url, thumb_url, report_path,
+            config_path="channel/config.json", draft=False, no_thumb=False) -> dict:
     """The exact createScheduledPost arguments {blogId, date, info (a JSON string)}.
 
-    Refuses (MediaError) unless report.json says ok: true and video.mp4 sits
-    next to it, the slot date is a full local time in the config timezone with
-    its UTC offset, and the URL is this repo's raw media URL for the topic."""
+    Refuses (MediaError) unless report.json says ok: true and video.mp4 and
+    thumbnail.jpg sit next to it, the slot date is a full local time in the
+    config timezone with its UTC offset, the URL is this repo's raw media URL
+    for the topic, and thumb_url is the matching raw .jpg URL (same day and
+    topic), which goes into info as videoThumbnailUrl. no_thumb=True (with
+    thumb_url None) leaves the cover out: only for a retry after Metricool
+    rejected the cover with VIDEO_THUMBNAIL_NOT_APPLICABLE."""
     report_path = Path(report_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if not isinstance(report, dict) or report.get("ok") is not True:
         raise MediaError(f"{report_path} does not say ok: true; never schedule it")
     if not (report_path.parent / "video.mp4").is_file():
         raise MediaError(f"no video.mp4 next to {report_path}; never schedule it")
+    if not (report_path.parent / "thumbnail.jpg").is_file():
+        raise MediaError(f"no thumbnail.jpg next to {report_path}; never schedule it")
     script = load_script(script_path)
     cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
     tz = cfg.get("timezone", TZ)
@@ -255,12 +262,24 @@ def payload(script_path, slot_date, url, report_path, config_path="channel/confi
         raise MediaError(f"slot date {slot_date!r} must be the slot's 'date' as printed by "
                          f"slots (local {tz} time with its offset)")
     prefix = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/media/"
-    if not (url.startswith(prefix) and url.endswith(f"/{script['topic']}.mp4")):
+    m = re.fullmatch(re.escape(prefix) + r"(\d{4}-\d{2}-\d{2})/" + re.escape(script["topic"])
+                     + r"\.mp4", url)
+    if not m:
         raise MediaError(f"media url {url!r} is not {prefix}<date>/{script['topic']}.mp4")
+    if no_thumb:
+        if thumb_url is not None:
+            raise MediaError("no_thumb leaves the cover out: give no cover url with it")
+    else:
+        want = raw_url(m.group(1), script["topic"], "jpg")
+        if thumb_url is None:
+            raise MediaError(f"no cover url given; need {want}")
+        if thumb_url != want:
+            raise MediaError(f"cover url {thumb_url!r} is not {want}")
     info = {
         "providers": [{"network": "youtube"}],
         "text": script["description"],
         "media": [url],
+        **({} if no_thumb else {"videoThumbnailUrl": thumb_url}),
         "publicationDate": {"dateTime": when.strftime("%Y-%m-%dT%H:%M:%S"), "timezone": tz},
         "autoPublish": True,
         "draft": bool(draft),
@@ -301,7 +320,7 @@ def push_with_retry(run, args, sleep=time.sleep):
 
 
 def upload(day, topic, mp4, repo=".", sleep=time.sleep) -> str:
-    """Commit mp4 as media/DAY/TOPIC.mp4 on origin's orphan `media` branch and push.
+    """Commit an .mp4 or .jpg as media/DAY/TOPIC.<ext> on origin's orphan `media` branch and push.
 
     Uses git plumbing with a throwaway index: the main checkout's HEAD, index
     and files are never touched. A new orphan branch is started when origin
@@ -389,7 +408,7 @@ def _curl_head(url):
 
 
 def verify(url, mp4, head=_curl_head, sleep=time.sleep):
-    """Raw URL answers 200 with the mp4's exact Content-Length (5 tries, 15 s apart)."""
+    """Raw URL answers 200 with the file's exact Content-Length (5 tries, 15 s apart)."""
     size = Path(mp4).stat().st_size
     for i in range(VERIFY_TRIES):
         status, length = head(url)
@@ -432,6 +451,10 @@ def main(argv=None) -> int:
     pl.add_argument("slot_date")
     pl.add_argument("url")
     pl.add_argument("report")
+    cover = pl.add_mutually_exclusive_group(required=True)
+    cover.add_argument("--thumb", default=None, help="raw URL of the uploaded thumbnail.jpg")
+    cover.add_argument("--no-thumb", action="store_true",
+                       help="leave the cover out (only after VIDEO_THUMBNAIL_NOT_APPLICABLE)")
     pl.add_argument("--config", default="channel/config.json")
     pl.add_argument("--draft", action="store_true")
     up = sub.add_parser("upload")
@@ -468,13 +491,15 @@ def main(argv=None) -> int:
         elif a.cmd == "stale":
             print("\n".join(stale(a.sheet, a.today)) or "none")
         elif a.cmd == "payload":
-            print(json.dumps(payload(a.script, a.slot_date, a.url, a.report,
-                                     config_path=a.config, draft=a.draft),
+            print(json.dumps(payload(a.script, a.slot_date, a.url, a.thumb, a.report,
+                                     config_path=a.config, draft=a.draft,
+                                     no_thumb=a.no_thumb),
                              indent=1, ensure_ascii=False))
         elif a.cmd == "upload":
             print(upload(a.day, a.topic, a.mp4, repo=a.repo))
         elif a.cmd == "verify":
-            status, length = verify(raw_url(a.day, a.topic), a.mp4)
+            ext = Path(a.mp4).suffix.lstrip(".").lower()
+            status, length = verify(raw_url(a.day, a.topic, ext), a.mp4)
             print(f"ok {status} {length}")
         elif a.cmd == "log":
             print(log_append(a.log_dir, a.day, a.entry))
