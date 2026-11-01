@@ -1,0 +1,83 @@
+{
+  "topic": "credit_score",
+  "title": "Zorb vs the Number From 300 to 850 That Judges You",
+  "description": "Zorb discovers the credit score: a number that predicts how likely Earthlings are to pay a loan back on time. Score ranges and uses come from the Consumer Financial Protection Bureau, and the score's parts come from FICO.\n\nEducation, not financial advice.\n\n#Shorts #creditscore #personalfinance",
+  "tags": [
+    "credit score",
+    "credit score explained",
+    "FICO score",
+    "how credit scores work",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 70,
+  "beats": [
+    {
+      "line": "Stop. Your loan rate hangs on a number from 300 to 850. How?",
+      "scene": "vault",
+      "expression": "shocked",
+      "props": {
+        "label": "300 TO 850",
+        "open": false
+      }
+    },
+    {
+      "line": "This number predicts how likely you are to pay a loan back on time.",
+      "scene": "price_tag",
+      "expression": "confused",
+      "props": {
+        "from": "300",
+        "to": "850",
+        "currency": ""
+      }
+    },
+    {
+      "line": "Lenders use it to say yes or no, and to pick your rate and credit limit.",
+      "scene": "shop",
+      "expression": "neutral",
+      "props": {
+        "item": "LOANS",
+        "price": "YES?"
+      }
+    },
+    {
+      "line": "FICO cooks it like a recipe. The biggest part, 35 percent, is paying on time.",
+      "scene": "calendar",
+      "expression": "aha",
+      "props": {
+        "start": "January"
+      }
+    },
+    {
+      "line": "Next, 30 percent is how much you owe.",
+      "scene": "money_stack",
+      "expression": "confused",
+      "props": {}
+    },
+    {
+      "line": "Then 15 percent for credit history length, 10 for the mix, 10 for new credit.",
+      "scene": "stock_chart",
+      "expression": "neutral",
+      "props": {
+        "trend": "up",
+        "label": "15-10-10"
+      }
+    },
+    {
+      "line": "Twist: you do not have one score. It changes with the model, the data, even the day.",
+      "scene": "planet",
+      "expression": "shocked",
+      "props": {
+        "label": "MANY SCORES"
+      }
+    },
+    {
+      "line": "Zorb will return. Earth money remains confusing.",
+      "scene": "planet",
+      "expression": "smug",
+      "props": {}
+    }
+  ]
+}
