@@ -1,0 +1,84 @@
+{
+  "topic": "compound_interest",
+  "title": "Zorb Learns How $730 of Pizza Became $3,155.02",
+  "description": "Zorb skips pizza for a year and discovers compound interest: money that earns interest on its own interest. The pizza and $100 examples come from the U.S. Securities and Exchange Commission's Investor.gov lesson on compound interest.\n\nEducation, not financial advice.\n\n#Shorts #compoundinterest #personalfinance",
+  "tags": [
+    "compound interest",
+    "compound interest explained",
+    "interest on interest",
+    "saving money",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 70,
+  "beats": [
+    {
+      "line": "Stop. Your 730 dollars of skipped pizza becomes 3,155.02 dollars. How?",
+      "scene": "shop",
+      "expression": "shocked",
+      "props": {
+        "item": "PIZZA",
+        "price": "$2"
+      }
+    },
+    {
+      "line": "Skip a 2 dollar slice every day for a year. That is 730 dollars.",
+      "scene": "money_stack",
+      "expression": "confused",
+      "props": {
+        "amount": 730
+      }
+    },
+    {
+      "line": "Lock it somewhere that pays 5 percent a year. Then wait.",
+      "scene": "vault",
+      "expression": "neutral",
+      "props": {
+        "label": "5 PERCENT",
+        "open": false
+      }
+    },
+    {
+      "line": "The trick: 100 dollars at 5 percent becomes 105. Next year, 110.25.",
+      "scene": "price_tag",
+      "expression": "aha",
+      "props": {
+        "from": "100",
+        "to": "110.25"
+      }
+    },
+    {
+      "line": "That extra quarter is interest on interest. Money making baby money.",
+      "scene": "stock_chart",
+      "expression": "confused",
+      "props": {
+        "trend": "up",
+        "label": "BABIES"
+      }
+    },
+    {
+      "line": "After 30 years, the pizza money is 3,155.02 dollars.",
+      "scene": "calendar",
+      "expression": "shocked",
+      "props": {
+        "years": 30
+      }
+    },
+    {
+      "line": "Earthlings call this compound interest. Zorb calls it pizza that never stops growing.",
+      "scene": "money_stack",
+      "expression": "aha",
+      "props": {
+        "amount": 3155.02
+      }
+    },
+    {
+      "line": "Zorb will return. Earth money remains confusing.",
+      "scene": "planet",
+      "expression": "smug",
+      "props": {}
+    }
+  ]
+}
