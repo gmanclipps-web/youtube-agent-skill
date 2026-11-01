@@ -178,3 +178,41 @@ def test_facts_reject_numbers_only_in_expired_bullets():
 
 def test_as_of_marker_date_is_not_a_sheet_number():
     assert not check_facts(script(["Day 28 of month 10."]), SHEET).ok
+
+
+# ---------------------------------------------------------------- cover text
+
+def test_facts_number_in_thumb_text_must_be_on_sheet():
+    r = check_facts(script(["Prices rose 2 percent."], thumb_text="9% WOW"), "Inflation was 2%.")
+    assert not r.ok and "9" in r.detail and "thumbnail" in r.detail
+    r = check_facts(script(["Prices rose 2 percent."], thumb_text="TWENTY FIVE?!"), "Inflation 2%.")
+    assert not r.ok and "25" in r.detail
+    assert check_facts(script(["Prices rose 2 percent."], thumb_text="ONLY 2%?!"), "Inflation 2%.").ok
+
+
+def test_facts_thumb_text_number_only_in_expired_bullet():
+    sheet = "- Prices rose 7%. (as of: 2026-01-01)\n- A basket is 1 thing.\n"
+    r = check_facts(script(["Prices rose."], thumb_text="7% MORE"), sheet, today=date(2026, 11, 1))
+    assert not r.ok and "expired" in r.detail and "7" in r.detail
+
+
+def test_facts_banned_phrase_in_thumb_text():
+    r = check_facts(script(["Hello."], thumb_text="BUY NOW"), "")
+    assert not r.ok and "thumbnail" in r.detail
+
+
+def test_metadata_thumb_must_not_repeat_title_words():
+    ok = check_metadata(script(title="Zorb Discovers Inflation", thumb_text="PRICES JUMPED?!"))
+    assert ok.ok, ok.detail
+    r = check_metadata(script(title="Zorb Discovers Inflation", thumb_text="INFLATION?!"))
+    assert not r.ok and "inflation" in r.detail and "thumb" in r.detail
+    r = check_metadata(script(title="Why Earth Snacks Cost More", thumb_text="snacks, cost!"))
+    assert not r.ok and "snacks" in r.detail and "cost" in r.detail
+    # short words (under 4 letters) may repeat
+    assert check_metadata(script(title="Why $100 Buys Less", thumb_text="WHY?! 100")).ok
+
+
+def test_metadata_requires_thumb_text():
+    s = script()
+    del s["thumb_text"]
+    assert not check_metadata(s).ok

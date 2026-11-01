@@ -5,7 +5,7 @@
                                      [--facts channel/facts] [--n N] [--today DATE]
     python3 -m pipeline.media stale SHEET [--today DATE]   # expired "(as of: ...)" bullets
     python3 -m pipeline.media slots --per-day N [--config channel/config.json] [--log-dir channel/log]
-    python3 -m pipeline.media numbers SCRIPT FACTS [--today DATE]  # title/description/tags numbers on sheet?
+    python3 -m pipeline.media numbers SCRIPT FACTS [--today DATE]  # title/description/tags/thumb_text numbers on sheet?
     python3 -m pipeline.media payload SCRIPT SLOT_DATE URL REPORT [--config channel/config.json] [--draft]
     python3 -m pipeline.media upload DATE TOPIC MP4 [--repo .]   # push mp4 to the media branch
     python3 -m pipeline.media verify DATE TOPIC MP4        # raw URL serves the same bytes?
@@ -180,10 +180,12 @@ def _date(d):
 
 
 def metadata_numbers(script_path, facts_path, today=None) -> list:
-    """Numbers (digits or number words) in title, description and tags that are
-    not on the fact sheet, or only in bullets expired by `today` (None = no expiry)."""
+    """Numbers (digits or number words) in title, description, tags and
+    thumb_text that are not on the fact sheet, or only in bullets expired by
+    `today` (None = no expiry)."""
     s = json.loads(Path(script_path).read_text(encoding="utf-8"))
-    text = " ".join([str(s.get("title", "")), str(s.get("description", ""))]
+    text = " ".join([str(s.get("title", "")), str(s.get("description", "")),
+                     str(s.get("thumb_text") or "")]
                     + [str(t) for t in s.get("tags", [])])
     sheet = _fact_numbers(Path(facts_path).read_text(encoding="utf-8"),
                           _date(today) if today is not None else None)
@@ -458,7 +460,7 @@ def main(argv=None) -> int:
         elif a.cmd == "numbers":
             bad = metadata_numbers(a.script, a.facts, _date(a.today))
             if bad:
-                print("numbers in title/description/tags not on fact sheet: " + ", ".join(bad))
+                print("numbers in title/description/tags/thumb_text not on fact sheet: " + ", ".join(bad))
                 return 1
             print("ok")
         elif a.cmd == "topics":

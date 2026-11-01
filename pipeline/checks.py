@@ -196,7 +196,8 @@ def _metadata_parts(script: dict) -> list:
     tags = script.get("tags") or []
     return [("title", str(script.get("title", ""))),
             ("description", str(script.get("description", ""))),
-            ("tags", " | ".join(str(t) for t in (tags if isinstance(tags, list) else [tags])))]
+            ("tags", " | ".join(str(t) for t in (tags if isinstance(tags, list) else [tags]))),
+            ("thumbnail text", str(script.get("thumb_text") or ""))]
 
 
 def _sort_numbers(nums) -> list:
@@ -205,7 +206,7 @@ def _sort_numbers(nums) -> list:
 
 def check_facts(script: dict, facts_text: str, today=None) -> CheckResult:
     """Every number (digits or number words) in the spoken lines, props, title,
-    description and tags must be on the fact sheet, in a bullet that has not
+    description, tags and thumbnail text must be on the fact sheet, in a bullet that has not
     expired by `today` (a date; None = no expiry); no banned phrases anywhere."""
     if isinstance(today, str):
         today = date.fromisoformat(today)
@@ -235,16 +236,37 @@ def check_facts(script: dict, facts_text: str, today=None) -> CheckResult:
     return CheckResult("facts", True, "all numbers on fact sheet, no banned phrases")
 
 
+THUMB_SHARED_MIN = 4     # cover and title may not share a word this long or longer
+
+
+def thumb_title_overlap(title: str, thumb: str) -> list:
+    """Words of THUMB_SHARED_MIN+ characters (case-insensitive, punctuation
+    stripped) that the cover text repeats from the title."""
+    long_words = lambda t: {w for w in _words(t) if len(w) >= THUMB_SHARED_MIN}
+    return sorted(long_words(title) & long_words(thumb))
+
+
 def check_metadata(script: dict) -> CheckResult:
+    """Disclaimer in the description, title <= MAX_TITLE characters, and a
+    thumbnail text that says what the title does not (no shared long word)."""
     problems = []
     if DISCLAIMER not in script.get("description", ""):
         problems.append(f"description missing '{DISCLAIMER}'")
     n = len(script.get("title", ""))
     if n > MAX_TITLE:
         problems.append(f"title is {n} chars (max {MAX_TITLE})")
+    thumb = script.get("thumb_text")
+    if not isinstance(thumb, str) or not thumb.strip():
+        problems.append("thumb_text missing")
+    else:
+        shared = thumb_title_overlap(str(script.get("title", "")), thumb)
+        if shared:
+            problems.append("thumb_text repeats the title on " + ", ".join(shared)
+                            + "; the cover must say what the title does not")
     if problems:
         return CheckResult("metadata", False, "; ".join(problems))
-    return CheckResult("metadata", True, "disclaimer present, title length ok")
+    return CheckResult("metadata", True,
+                       "disclaimer present, title length ok, cover text differs from title")
 
 
 def check_variety(script: dict, recent: list) -> CheckResult:

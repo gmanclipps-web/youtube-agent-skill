@@ -182,6 +182,13 @@ def test_metadata_numbers_ignores_url_numbers_on_sheet(tmp_path):
     assert media.metadata_numbers(p, f) == ["10142026"]
 
 
+def test_metadata_numbers_include_thumb_text(tmp_path):
+    p, f = _meta_script(tmp_path, thumb_text="ONLY 9%?!")
+    assert media.metadata_numbers(p, f) == ["9"]
+    p, f = _meta_script(tmp_path, thumb_text="SEVEN PERCENT?!")
+    assert media.metadata_numbers(p, f) == []
+
+
 def test_cli_numbers_exit_code(tmp_path, capsys):
     p, f = _meta_script(tmp_path)
     assert media.main(["numbers", str(p), str(f)]) == 0
