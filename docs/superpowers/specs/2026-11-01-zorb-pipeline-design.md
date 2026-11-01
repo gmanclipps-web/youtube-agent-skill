@@ -24,7 +24,9 @@ One scheduled session, created with the Metricool connector, runs `pipeline/run_
 (the session's instructions) which drives these steps:
 
 1. **Pick topics.** Next `per_day` topics from `channel/topics.json` that have a fact sheet and were
-   not used in the last 30 days (checked against `channel/log/`).
+   not scheduled in the last 5 days (a topic scheduled on day D is eligible again from D + 6;
+   `python3 -m pipeline.media topics`, checked against `channel/log/`). A repeat must use a
+   different fact-sheet bullet as its twist than the topic's scripts of the last 30 days.
 2. **Write.** One script per topic using `/yt-script` (hooks scored by `skills/yt-script/hookscore.py`,
    best hook must score 55+) and `/yt-package` (title linted by `skills/yt-package/title.py`).
    Output is `script.json`: title, description, tags, and a list of beats
@@ -58,8 +60,12 @@ Publish times: 08:00, 13:00, 19:00 America/New_York (first `per_day` slots).
 ## Checks (all must pass)
 
 1. **Facts.** Every number and named claim in the script appears in `channel/facts/<topic>.md`
-   (each fact has a source URL). Scripts may not recommend specific securities, predict prices, or
-   give personalised advice; a banned-phrase list enforces this.
+   (each fact has a source URL). The code checks every number (digits and number words, a lone
+   "one" excepted) in the spoken lines, props, title, description and tags. Bullets marked
+   `(as of: YYYY-MM-DD)` expire 45 days later; a number found only in expired bullets fails.
+   Runs never edit fact sheets. Scripts may not recommend specific securities, predict prices,
+   or give personalised advice; a banned-phrase list (checked in lines, title, description and
+   tags) enforces this.
 2. **Technical.** ffprobe: 1080x1920, duration <= 59 s, audio stream present, captions text equals
    the spoken script.
 3. **Variety.** Title not within 0.8 similarity of any title from the last 30 days; scene sequence

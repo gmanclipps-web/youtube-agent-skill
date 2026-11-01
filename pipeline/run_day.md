@@ -11,12 +11,31 @@ checked out; `cd` there at the start of every Bash call if unsure).
 `YESTERDAY`, `PER_DAY`, and `<topic>`, are placeholders: type their literal values into each
 command (e.g. `2026-11-02`, `stocks`). Never rely on a shell variable set in an earlier call.
 
-## 0. Hard rules (read before doing anything)
+## 0. Get the work branch (before anything else)
+
+A fresh session may start on another branch. Before reading or running anything else:
+
+```bash
+git fetch origin claude/quirky-cannon-xc1vyz && git checkout claude/quirky-cannon-xc1vyz
+git merge --ff-only origin/claude/quirky-cannon-xc1vyz
+git status --short --branch          # must show claude/quirky-cannon-xc1vyz
+```
+
+If `git fetch` fails with a network error, retry up to 4 times, waiting 2 s, 4 s, 8 s, 16 s.
+If it still fails, or the checkout or merge fails, stop: there is nothing to log against;
+report it in the final summary. Every file this run reads (this one included) is the copy on
+that branch.
+
+**All pushes go to `claude/quirky-cannon-xc1vyz` (step 7) and to `media` (only through
+`python3 -m pipeline.media upload`, step 5). Never push anything to any other branch.**
+
+## Hard rules (read before doing anything else)
 
 1. Never publish (schedule) a video whose `report.json` has `"ok": false`, or whose
    `video.mp4` is missing.
 2. Never edit anything under `pipeline/` or `skills/`, never weaken a check, never change
-   `channel/config.json` or `channel/topics.json`. If the code seems broken, log it and stop.
+   `channel/config.json`, `channel/topics.json` or any `channel/facts/*.md` fact sheet (the
+   owner maintains the sheets; a run only reads them). If the code seems broken, log it and stop.
 3. Never delete or rewrite an existing log entry. Logs are append-only, and you only ever add to
    them with `python3 -m pipeline.media log` (step L).
 4. Never invent a number, a fact or a source. Never cite a page you did not read in this session
@@ -29,7 +48,8 @@ command (e.g. `2026-11-02`, `stocks`). Never rely on a shell variable set in an 
 6. Do not call any Metricool tool other than `createScheduledPost`. Never call it twice for the
    same topic. After any Metricool error, schedule nothing more today, and if today's log
    already holds a Metricool error, schedule nothing at all today.
-7. Only `python3 -m pipeline.media upload` writes to the `media` branch. Never touch that
+7. Push only to `claude/quirky-cannon-xc1vyz`; only `python3 -m pipeline.media upload` writes
+   to the `media` branch. Never touch that
    branch with other git commands, never force-push any branch, never run `git rm`, `git clean`,
    `git reset --hard` or `rm -rf` inside the repo checkout.
 8. Use the timezone `America/New_York` for every date in this file ("today" = the New York date).
@@ -40,7 +60,8 @@ The owner may start you with "dry run". Then do everything below exactly the sam
 these differences:
 
 - use `PER_DAY=1` instead of `per_day` from the config (step 1); do not edit the config,
-- in step 6 send `"draft": true` instead of `"draft": false` (everything else identical),
+- in step 6 add `--draft` to the `payload` command (it then prints `"draft": true`;
+  everything else identical),
 - when the draft was created, log it with `"status": "skipped"` (a draft is not a published
   video, so the topic stays eligible for real runs and its slot stays free),
   `"reason": "dry run: draft only"`, `"title": null`, `"scenes": []`, and still fill
@@ -52,28 +73,33 @@ at the start of the final summary.
 ## 1. Set up
 
 ```bash
-git status --short --branch          # must be on claude/quirky-cannon-xc1vyz
-git pull --ff-only origin claude/quirky-cannon-xc1vyz
-pip install -q -r pipeline/requirements.txt
-cat channel/config.json
+git status --short --branch          # must be on claude/quirky-cannon-xc1vyz (step 0)
 python3 -m pipeline.media today --log-dir channel/log
 ```
 
-The last command prints e.g. `{"date": "2026-11-02", "weekday": "Monday", "monday": true,
+It prints e.g. `{"date": "2026-11-02", "weekday": "Monday", "monday": true,
 "yesterday": "2026-11-01", "scheduled_today": 0, "metricool_error_today": false}`.
+Note `TODAY` = `date` and create today's work directory **now, before any other file is
+written there** (every entry file in step L lives in it):
 
-- If you are not on `claude/quirky-cannon-xc1vyz`, run `git checkout claude/quirky-cannon-xc1vyz`.
-  If that fails, stop (nothing to log against; report it in the summary).
+```bash
+mkdir -p /tmp/zorb/TODAY
+pip install -q -r pipeline/requirements.txt
+cat channel/config.json
+```
+
+- If you are not on `claude/quirky-cannon-xc1vyz`, go back to step 0.
 - If `pip install` fails, retry once; if it still fails, log one entry (step L:
   `"topic": null`, `"status": "error"`, `"reason"` = the pip error's last line), push (step 7), stop.
-- Note `TODAY` = `date`, `YESTERDAY` = `yesterday`.
+- `YESTERDAY` = `yesterday`.
   `PER_DAY` = `per_day` from `channel/config.json` (1 in a dry run).
 - If `metricool_error_today` is true: a Metricool error already happened today. Schedule
   nothing; finish with the summary (step 8).
 - If `scheduled_today >= PER_DAY`, today is done (a rerun): write nothing, finish with the summary.
   Otherwise `REMAINING` = `PER_DAY` minus `scheduled_today` (normally `REMAINING` = `PER_DAY`).
 - Work directory for build files: `/tmp/zorb/TODAY/<topic>/` (not committed). Create it with
-  `mkdir -p /tmp/zorb/TODAY/<topic>` before writing anything there.
+  `mkdir -p /tmp/zorb/TODAY/<topic>` before writing anything there (`/tmp/zorb/TODAY` itself
+  already exists from the `mkdir -p` above).
 
 ## L. Logging (used by every later step)
 
@@ -117,43 +143,20 @@ The log is pushed in step 7 (and also right after every `scheduled` entry, see s
 
 ## 2. Choose topics
 
-Run this exactly; it prints the eligible topic ids in the order to try them:
+Run this (`N` = `REMAINING + 2`, the most topics you may attempt today, e.g. `4`):
 
 ```bash
-python3 - <<'PY'
-import json, re
-from datetime import date, timedelta
-from pathlib import Path
-from pipeline.media import today
-TODAY = date.fromisoformat(today()["date"])
-topics = [t["id"] for t in json.loads(Path("channel/topics.json").read_text())]
-last_sched, last_try = {}, {}
-for p in sorted(Path("channel/log").glob("*.json")):
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}\.json", p.name):
-        continue
-    day = p.stem
-    try:
-        entries = json.loads(p.read_text())
-    except ValueError:
-        continue
-    for e in entries if isinstance(entries, list) else []:
-        if not isinstance(e, dict) or not e.get("topic"):
-            continue
-        last_try[e["topic"]] = max(last_try.get(e["topic"], ""), day)
-        if e.get("status") == "scheduled":
-            last_sched[e["topic"]] = max(last_sched.get(e["topic"], ""), day)
-cutoff = (TODAY - timedelta(days=30)).isoformat()
-eligible = [t for t in topics
-            if Path(f"channel/facts/{t}.md").is_file()
-            and last_sched.get(t, "") < cutoff          # not scheduled in the last 30 days
-            and last_try.get(t, "") != TODAY.isoformat()]  # not already tried today
-eligible.sort(key=lambda t: (last_sched.get(t, ""), last_try.get(t, ""), topics.index(t)))
-print(json.dumps(eligible))
-PY
+python3 -m pipeline.media topics --log-dir channel/log --topics channel/topics.json --facts channel/facts --n N
 ```
 
+It prints the eligible topic ids in the order to try them, e.g. `["stocks", "tariffs"]`.
+Eligible = has a fact sheet, not already tried today, and not scheduled in the last 5 days
+(a topic scheduled on day D is eligible again from day D + 6). The code decides; do not
+second-guess or reorder the list.
+
 - A topic is "used" when a log entry for it has `"status": "scheduled"`. Never-used topics come
-  first, then the ones used longest ago; topics tried and skipped recently go later.
+  first, then the ones used longest ago; topics tried and skipped recently go later. Topics
+  repeat about once a week, so a repeat must tell a **different** story (step 3).
 - If the list is empty: log one entry (step L) with `"topic": null`, `"status": "skipped"`,
   `"reason": "no eligible topics"` (other fields null / `[]`), do step 7, stop.
 - Work through the list in order, one topic at a time (steps 3-6), then the next. Stop when
@@ -161,35 +164,48 @@ PY
   Metricool error happened, or when the list runs out. Each attempted topic gets exactly one
   log entry (step L).
 
-## 3. For each topic: check the fact sheet
+## 3. For each topic: check the fact sheet and earlier scripts
 
 Read `channel/facts/<topic>.md` in full. Each bullet ends with `(source: URL)`.
 
-**Freshness.** For every bullet that states a calendar date (e.g. "release of October 14, 2026",
-"12 months ending September 2026", "in 2026"), take the most recent date it states. A full date
-counts as itself, a month as the **last** day of that month, a bare year as **January 1** of
-that year. If that date is more than 45 days before TODAY, the bullet is **stale**: do not use
-any of its numbers in the script, props, title, description or tags.
-Bullets without dates (definitions, rules, fixed examples) are fine.
+**Freshness.** Only bullets that carry the marker `(as of: YYYY-MM-DD)` can go out of date
+(latest-release figures: CPI, the current rate range, this year's tax figures...); they expire
+45 days after that date. Bullets without the marker (definitions, rules, historical facts,
+fixed examples) never expire, whatever dates they mention. List the expired bullets:
 
-You may refresh a stale bullet, only like this:
-1. Fetch the bullet's own source (same agency or organisation) with WebFetch or Firecrawl and
-   actually read the current figure on the page.
-2. Rewrite the bullet with the new figure, the new date stated on the page, and a stable URL for
-   that exact release (an archive/permalink URL of the release, not a "latest" page, when the
-   source offers one).
-3. Commit it alone: `git add channel/facts/<topic>.md && git commit -m "facts: refresh <topic>"`.
+```bash
+python3 -m pipeline.media stale channel/facts/<topic>.md
+```
 
-If the fetch fails or the page does not state the figure clearly, leave the sheet unchanged and
-just avoid that bullet. Never add a bullet from a source you did not read. If fewer than two
-non-stale bullets with something concrete to say remain, skip the topic
-(log it per step L: `"status": "skipped"`, `"reason": "fact sheet stale"`).
+It prints `none`, or each expired bullet on its own line. **Expired bullets are simply not
+used**: none of their numbers or claims go into the script, props, title, description or tags
+(the build rejects any number that appears only in expired bullets). There is no refreshing:
+never edit a fact sheet during a run (hard rule 2), even if you could fetch a newer figure.
+Note the expired bullets for the final summary, so the owner can refresh them. If fewer than
+two non-expired bullets with something concrete to say remain, skip the topic (log it per
+step L: `"status": "skipped"`, `"reason": "fact sheet stale"`).
+
+**Earlier scripts of this topic.** Topics come back about once a week, so read every earlier
+script of this topic before writing:
+
+```bash
+ls channel/scripts/*/<topic>.json channel/samples/<topic>/script.json 2>/dev/null
+```
+
+Read each file listed (the `channel/samples/` one was published on 2026-11-01; the others are
+dated by their folder). For the ones from the last 30 days, note their titles, their twist
+(the surprising fact) and which fact-sheet bullets their numbers came from. The new script must
+use a **different angle**: its twist and main numbers come from a fact-sheet bullet that none of
+those scripts used for its twist, and its title, hook and visual metaphor must differ from
+theirs. If every usable bullet has already been the twist of one of them, skip the topic
+(step L: `"status": "skipped"`, `"reason": "no fresh angle on the fact sheet"`).
 
 ## 4. For each topic: write the script, then build
 
 ### 4a. Voice and shape
 
-Copy the shape of `channel/samples/inflation/script.json` (read it now; it passes every check).
+Copy the shape of `channel/samples/inflation/script.json` (read it now; it passed every check
+when it was published; its facts may have expired since, so copy its shape, not its numbers).
 
 - Zorb is a small, curious, baffled, funny alien reporting on Earth money. Zorb talks to
   "Earthlings", in short sentences, present tense, no jargon without a one-line explanation.
@@ -202,12 +218,16 @@ Copy the shape of `channel/samples/inflation/script.json` (read it now; it passe
   sequence (the build checks this against the last 10 scheduled videos in the logs).
 - Scenes: `shop, price_tag, vault, stock_chart, credit_card, planet, calendar, money_stack`.
   Expressions: `neutral, confused, shocked, aha, smug`. Vary the expressions.
-- **Every number** spoken in a line, in a prop, in the title, description or tags must appear on the topic's fact
-  sheet (in a non-stale bullet). Write numbers as digits ("7 percent", "100 dollars") so the
-  checker can match them. Years, ages and counts are numbers too ("15 years" needs a 15 on the
-  sheet). If you are unsure a number is there, leave it out.
-- Banned in any line (the build fails on these): "you should buy", "guaranteed", "will go up",
-  "will crash", "buy now", "financial advice for you". Also obey hard rule 5.
+- **Every number** spoken in a line, in a prop, in the title, description or tags must appear on
+  the topic's fact sheet, in a bullet that has not expired (step 3). The build checks this.
+  Number words count too: "two", "twenty five", "hundred", "thousand", "million", "half",
+  "double", "twice", "triple" ... are read as 2, 25, 100, 1000, 1000000, 0.5, 2, 2, 3 and need
+  that number on the sheet (only a lone "one" is ignored). Prefer digits ("7 percent",
+  "100 dollars"). Years, ages and counts are numbers too ("15 years" needs a 15 on the sheet).
+  If you are unsure a number is there, leave it out.
+- Banned anywhere (lines, title, description, tags; the build fails on these): "you should
+  buy", "guaranteed", "will go up", "will crash", "buy now", "financial advice for you". Also
+  obey hard rule 5.
 
 ### 4b. Props: every numeric scene gets explicit numbers
 
@@ -246,7 +266,8 @@ not get from the tool.
 - Title: starts with `Zorb`, at most 60 characters, plays on the topic's `title_seed` in
   `channel/topics.json`, a concrete number from the sheet if it fits. Write 5 options, run
   each through `python3 skills/yt-package/title.py --json --title "<title>"`, take the best
-  score. It must not resemble a title from the last 30 days of logs.
+  score. It must not resemble a title from the last 30 days of logs, nor the title of any
+  earlier script of this topic (step 3).
 - Description: 2-3 plain sentences (what Zorb discovers; name the source organisation of the
   figures), then a blank line, then exactly `Education, not financial advice.`, then a blank
   line, then 3 hashtags on one line, the first being `#Shorts` (e.g.
@@ -266,8 +287,8 @@ python3 -m pipeline.media numbers /tmp/zorb/TODAY/<topic>/script.json channel/fa
 ```
 
 The first must print words 75-120, beats 6-9, distinct scenes >= 4. The second must print `ok`
-(it lists any number in the title, description or tags that is not on the sheet; remove or fix
-those). Fix the script until both pass; these fixes do not count as rewrites.
+(it lists any number, digits or words, in the title, description or tags that is not in a
+non-expired bullet of the sheet; remove or fix those). Fix the script until both pass; these fixes do not count as rewrites.
 
 Then save a copy: `mkdir -p channel/scripts/TODAY && cp /tmp/zorb/TODAY/<topic>/script.json
 channel/scripts/TODAY/<topic>.json` (repeat the copy after every rewrite, so the committed copy
@@ -291,7 +312,9 @@ Read `report.json` (`ok`, `checks`, `duration`, `scenes`, `error`):
   script that runs over 59 s, change a title too similar to a recent one, reorder scenes...),
   redo 4e and build again. At most 2 rewrites; then log it (step L: `"status": "skipped"`,
   `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ") and go to
-  the next topic. Never "fix" a check by editing pipeline code, the fact sheet's numbers or the logs.
+  the next topic. Never "fix" a check by editing pipeline code, the fact sheet or the logs.
+  **A failing `facts` check is never fixed by editing a fact sheet**: remove or change the
+  number in the script, or skip the topic.
 - `error` starts with `bad script`, `render failed` or `build failed`: fix an obviously malformed
   script.json once; otherwise log it (step L: `"status": "error"`, `"reason"` = the error text)
   and go to the next topic.
@@ -341,47 +364,28 @@ python3 -m pipeline.media slots --per-day 1
 
 It prints a list with one slot object (`date` with UTC offset, `publicationDate`). It takes the
 configured slots in order (a slot already past or less than 20 minutes away moves to the same
-time tomorrow) and skips every slot already booked by a `scheduled` entry in today's or
-yesterday's log, so each topic gets its own slot and a rerun never double-books. If it prints
+time tomorrow; it looks at most 2 days ahead) and skips every slot already booked by a
+`scheduled` entry in the logs of today and the 2 days before, so each topic gets its own slot and a rerun never double-books. If it prints
 `[]`, log the topic (step L: `"status": "skipped"`, `"reason": "no free slot"`) and stop
 scheduling.
 
-Call `createScheduledPost` with these arguments (fill `<...>` from the script and the slot;
-`info` is a JSON **string**, so serialise this object with proper escaping of quotes and
-newlines in the description):
+Print the exact tool arguments (`SLOT_DATE` = the slot's `date`, e.g.
+`2026-11-02T08:00:00-05:00`; `URL` = the raw URL printed by the upload in step 5; add
+`--draft` in a dry run):
 
-```json
-{
-  "blogId": "7783344",
-  "date": "<slot.date, e.g. 2026-11-02T08:00:00-05:00>",
-  "info": {
-    "providers": [{"network": "youtube"}],
-    "text": "<script.description, exactly>",
-    "media": ["<raw URL printed by the upload in step 5>"],
-    "publicationDate": {"dateTime": "<slot.publicationDate.dateTime, e.g. 2026-11-02T08:00:00>",
-                        "timezone": "America/New_York"},
-    "autoPublish": true,
-    "draft": false,
-    "descendants": [],
-    "firstCommentText": "",
-    "hasNotReadNotes": false,
-    "mediaAltText": [],
-    "shortener": false,
-    "smartLinkData": {"ids": []},
-    "youtubeData": {
-      "title": "<script.title>",
-      "type": "short",
-      "privacy": "public",
-      "tags": ["<script.tags ...>"],
-      "category": "EDUCATION",
-      "madeForKids": false,
-      "isAiGeneratedContent": false
-    }
-  }
-}
+```bash
+python3 -m pipeline.media payload /tmp/zorb/TODAY/<topic>/script.json SLOT_DATE URL /tmp/zorb/TODAY/<topic>/out/report.json
 ```
 
-(Dry run: `"draft": true`.) Do not add any other field (no thumbnail fields).
+It refuses (exit non-zero, message on stderr) unless `report.json` says `"ok": true` and
+`video.mp4` sits next to it, the slot date is a slot as printed by `slots`, and the URL is
+this topic's media URL. If it refuses, do not schedule: log it (step L: `"status": "error"`,
+`"reason"` = the printed error) and go to the next topic.
+
+Otherwise it prints one JSON object with exactly three keys: `blogId`, `date` and `info`.
+Call `createScheduledPost` with exactly those three values, copied verbatim: `info` is
+already a JSON **string**; pass that string as it is (do not parse, re-serialise, re-escape
+or edit it, and do not build the JSON yourself). Do not add any other argument.
 
 - Success: the response contains a `plannerUrl`. **Immediately** log it (step L:
   `"status": "scheduled"`, `title`, `scenes`, `planner_url`, `media_url`, `publish_at` = the
@@ -409,5 +413,5 @@ push again. Never force-push this branch.
 ## 8. Finish
 
 End with one paragraph: the date, each topic attempted with its status, title, publish time and
-planner URL (or the reason it was skipped), anything refreshed on a fact sheet, and anything
-the owner should look at. Prefix it with "DRY RUN" for a dry run.
+planner URL (or the reason it was skipped), every expired fact-sheet bullet you saw (step 3) so
+the owner can refresh it, and anything else the owner should look at. Prefix it with "DRY RUN" for a dry run.
