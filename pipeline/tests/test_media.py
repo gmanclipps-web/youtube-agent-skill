@@ -512,3 +512,20 @@ def test_slots_prefer_later_today_over_rolled_morning_slot():
     assert [x["date"] for x in s] == ["2026-11-01T13:00:00-05:00",
                                        "2026-11-01T19:00:00-05:00",
                                        "2026-11-02T08:00:00-05:00"]
+
+
+def test_upload_jpg_cover_next_to_video(repo, tmp_path):
+    work, origin = repo
+    media.upload("2026-11-01", "stocks", _mp4(tmp_path, "a.mp4", b"v"), repo=work, sleep=lambda s: None)
+    url = media.upload("2026-11-01", "stocks", _mp4(tmp_path, "t.jpg", b"j"), repo=work,
+                       sleep=lambda s: None)
+    assert url == media.raw_url("2026-11-01", "stocks", "jpg")
+    assert url.endswith("/media/2026-11-01/stocks.jpg")
+    assert _files(origin) == ["media/2026-11-01/stocks.jpg", "media/2026-11-01/stocks.mp4"]
+
+
+def test_upload_rejects_other_file_types(repo, tmp_path):
+    work, _ = repo
+    with pytest.raises(media.MediaError, match="unsupported"):
+        media.upload("2026-11-01", "stocks", _mp4(tmp_path, "x.png", b"p"), repo=work,
+                     sleep=lambda s: None)

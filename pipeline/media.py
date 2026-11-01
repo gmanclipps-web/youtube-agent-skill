@@ -48,12 +48,17 @@ class MediaError(Exception):
     pass
 
 
-def media_path(day: str, topic: str) -> str:
-    return f"media/{day}/{topic}.mp4"
+MEDIA_EXTS = ("mp4", "jpg")
 
 
-def raw_url(day: str, topic: str) -> str:
-    return f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/{media_path(day, topic)}"
+def media_path(day: str, topic: str, ext: str = "mp4") -> str:
+    if ext not in MEDIA_EXTS:
+        raise MediaError(f"unsupported media type: {ext!r}")
+    return f"media/{day}/{topic}.{ext}"
+
+
+def raw_url(day: str, topic: str, ext: str = "mp4") -> str:
+    return f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/{media_path(day, topic, ext)}"
 
 
 def _now(now, tz):
@@ -305,6 +310,9 @@ def upload(day, topic, mp4, repo=".", sleep=time.sleep) -> str:
     if not re.fullmatch(r"[a-z0-9_]+", topic):
         raise MediaError(f"bad topic id: {topic!r}")
     mp4 = Path(mp4).resolve()
+    ext = mp4.suffix.lstrip(".").lower()
+    if ext not in MEDIA_EXTS:
+        raise MediaError(f"unsupported media type: {mp4.name}")
     if not mp4.is_file():
         raise MediaError(f"no such file: {mp4}")
     repo = Path(repo).resolve()
@@ -333,7 +341,7 @@ def upload(day, topic, mp4, repo=".", sleep=time.sleep) -> str:
 
     d = date.fromisoformat(day)
     fresh = not have or (d.weekday() == 0 and not exists(f"media/{day}"))
-    dest = media_path(day, topic)
+    dest = media_path(day, topic, ext)
     with tempfile.TemporaryDirectory(prefix="zorb-media-") as td:
         env = {"GIT_INDEX_FILE": str(Path(td) / "index")}
         if fresh:
@@ -347,14 +355,14 @@ def upload(day, topic, mp4, repo=".", sleep=time.sleep) -> str:
         git("update-index", "--add", "--cacheinfo", f"100644,{blob},{dest}", env=env)
         tree = git("write-tree", env=env)
     if not fresh and tree == git("rev-parse", f"{parent}^{{tree}}"):
-        return raw_url(day, topic)           # already there, identical bytes
+        return raw_url(day, topic, ext)      # already there, identical bytes
     commit = git("commit-tree", tree, *(["-p", parent] if not fresh else []),
                  "-m", f"media: {day} {topic}")
     push = ["push", "-q", "origin", f"{commit}:refs/heads/{BRANCH}"]
     if fresh and have:   # replace the branch, but only if nobody moved it meanwhile
         push.insert(2, f"--force-with-lease=refs/heads/{BRANCH}:{parent}")
     push_with_retry(run, push, sleep)
-    return raw_url(day, topic)
+    return raw_url(day, topic, ext)
 
 
 # ---------------------------------------------------------------- verify
