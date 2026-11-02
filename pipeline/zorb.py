@@ -230,15 +230,19 @@ def _sprite(expression, mouth_q, blink, scale):
     _mouth(pen, expression, mouth_q / 20)
     _extras(pen, expression)
     out = round(2 * HALF * scale)
+    if size == out * SS:                       # exact 2x: a box reduce is fast and clean
+        return layer.reduce(SS)
     return layer.resize((out, out), Image.LANCZOS)
 
 
 def draw_zorb(img: Image.Image, expression: str, mouth: float, blink: bool,
-              center: tuple, scale: float = 1.0) -> None:
+              center: tuple, scale: float = 1.0, stretch: tuple = (1.0, 1.0)) -> None:
     """Paste Zorb onto ``img`` (in place).
 
     expression: one of EXPRESSIONS. mouth: 0 (closed) .. 1 (wide open), clamped
     and quantised to 1/20 steps. blink: eye closed. center: (x, y) of the body.
+    stretch: (sx, sy) squash/stretch factors; the sprite is resized by them and
+    stays standing on the same floor line (its bottom edge does not move).
     """
     if expression not in EXPRESSIONS:
         raise ValueError(f"unknown expression {expression!r}; expected one of {EXPRESSIONS}")
@@ -250,4 +254,11 @@ def draw_zorb(img: Image.Image, expression: str, mouth: float, blink: bool,
     scale = round(max(0.05, float(scale)), 3)
     sprite = _sprite(expression, mouth_q, bool(blink), scale)
     off = round(HALF * scale)
-    img.paste(sprite, (round(center[0]) - off, round(center[1]) - off), sprite)
+    sx, sy = (max(0.2, float(v)) for v in stretch)
+    if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
+        img.paste(sprite, (round(center[0]) - off, round(center[1]) - off), sprite)
+        return
+    w, h = max(1, round(sprite.width * sx)), max(1, round(sprite.height * sy))
+    squashed = sprite.resize((w, h), Image.BILINEAR)
+    bottom = round(center[1]) + off
+    img.paste(squashed, (round(center[0] - w / 2), bottom - h), squashed)

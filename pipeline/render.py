@@ -1,7 +1,14 @@
 """Render a Zorb Short: scene + captions + Zorb per frame, piped to ffmpeg.
 
-Layout (1080x1920): scene y 0-1050, captions in the band y 1100-1400
-(x 110-950, clear of the bottom 20% and right 12%), Zorb centred (540, 1660).
+Layout (1080x1920): scene y 0-1050, captions in the band y 1060-1305
+(x 110-950, clear of the bottom 20% and right 12%), Zorb at 1.25x centred
+near (540, 1628), always below the captions band.
+
+Made for the Shorts feed: the first HOOK_SECONDS show the cover's punch text
+(``thumb_text``, drawn by thumbnail.draw_punch_text) huge over the first scene,
+readable from frame 0; every scene slowly pushes in (push_zoom) and each beat
+change pops in with a short white flash (pop); Zorb bobs and squashes on each
+beat start (zorb_pose).
 """
 import math
 import os
@@ -15,7 +22,8 @@ from PIL import Image, ImageDraw
 
 from pipeline import music
 from pipeline.captions import active, chunk_words
-from pipeline.scenes import SCENE_H, SCENE_PAINTERS, font, mix, palette
+from pipeline.scenes import SCENE_H, SCENE_PAINTERS, ease_out, font, mix, palette
+from pipeline.thumbnail import draw_punch_text, thumb_words
 from pipeline.zorb import draw_zorb
 
 FFMPEG = "ffmpeg"
@@ -24,17 +32,28 @@ FPS = 30
 TAIL = 0.5
 SR = 48000
 
-CAP_TOP, CAP_BOTTOM = 1100, 1400
+CAP_TOP, CAP_BOTTOM = 1060, 1305
 CAP_LEFT, CAP_RIGHT = 110, 950
-CAP_PAD_X, CAP_PAD_Y = 34, 22
-CAP_MAX_SIZE, CAP_MIN_SIZE = 104, 56
-CAP_ONE_LINE_MIN = 80
+CAP_PAD_X, CAP_PAD_Y = 30, 20
+CAP_MAX_SIZE, CAP_MIN_SIZE = 112, 80
+CAP_ONE_LINE_MIN = 84
 CAP_FLOOR = 40
 ELLIPSIS = "\u2026"
 CAP_HOLD = 0.35          # keep a caption up through short pauses (s)
-ZORB_CENTER = (540, 1660)
+ZORB_CENTER = (540, 1628)
+ZORB_SCALE = 1.25
+BOB_PX, BOB_PERIOD = 10, 1.2          # gentle idle bob: +-10 px, 1.2 s
+SQUASH_FRAMES, SQUASH = 9, 0.12       # squash then pop back on each beat start
 BLINK_EVERY = 105        # frames (3.5 s)
 BLINK_FRAMES = 4
+
+HOOK_SECONDS = 1.8       # cover punch text over the first scene
+HOOK_POP_FRAMES = 6      # scale 0.6 -> 1.0
+HOOK_FADE_FRAMES = 4     # fade out at the end of the hook
+HOOK_BOX = (110, 110, 930, 940)       # inside the scene, clear of the right 12%
+HOOK_DIM = 0.6           # darken the scene behind the punch text
+PUSH_ZOOM = 0.08         # 1.00 -> 1.08 across each beat
+POP_FRAMES, POP_FROM, POP_FLASH = 5, 0.92, 0.35
 
 
 class RenderError(Exception):
@@ -115,6 +134,67 @@ def _beat_at(spans, t):
     return 0
 
 
+# ---------------------------------------------------------------- motion
+
+def push_zoom(progress: float) -> float:
+    """Scene zoom across a beat: 1.00 at its start to 1.0 + PUSH_ZOOM at its end."""
+    return 1.0 + PUSH_ZOOM * min(1.0, max(0.0, float(progress)))
+
+
+def pop(k: int) -> tuple:
+    """(scale, white flash alpha) ``k`` frames after a beat change."""
+    if k < 0 or k >= POP_FRAMES:
+        return 1.0, 0.0
+    u = k / POP_FRAMES
+    return POP_FROM + (1.0 - POP_FROM) * ease_out(u), POP_FLASH * (1.0 - u)
+
+
+def hook_scale(k: int) -> float:
+    """Hook-card scale ``k`` frames in: 0.6 at frame 0, 1.0 from HOOK_POP_FRAMES on."""
+    return 0.6 + 0.4 * ease_out(min(1.0, max(0, k) / HOOK_POP_FRAMES))
+
+
+def zorb_pose(f: int, beat_frame: int) -> tuple:
+    """(cx, cy, sx, sy) for Zorb at frame ``f`` of a beat that began at frame
+    ``beat_frame``: a sine bob plus a squash-and-pop right after the beat starts."""
+    cx, cy = ZORB_CENTER
+    cy = cy + BOB_PX * math.sin(2 * math.pi * f / (BOB_PERIOD * FPS))
+    k = f - beat_frame
+    if 0 <= k < SQUASH_FRAMES:
+        u = k / SQUASH_FRAMES
+        sy = 1.0 - SQUASH * (1.0 - u) * math.cos(1.5 * math.pi * u)
+        return cx, cy, 2.0 - sy, sy
+    return cx, cy, 1.0, 1.0
+
+
+def _zoom(scene: Image.Image, z: float, fill) -> Image.Image:
+    """Scale ``scene`` by ``z`` about its centre, keeping its size."""
+    w, h = scene.size
+    if abs(z - 1.0) < 1e-4:
+        return scene
+    if z > 1.0:
+        cw, ch = w / z, h / z
+        box = ((w - cw) / 2, (h - ch) / 2, (w + cw) / 2, (h + ch) / 2)
+        return scene.resize((w, h), Image.BILINEAR, box=box)
+    small = scene.resize((max(1, round(w * z)), max(1, round(h * z))), Image.BILINEAR)
+    out = Image.new("RGB", (w, h), fill)
+    out.paste(small, ((w - small.width) // 2, (h - small.height) // 2))
+    return out
+
+
+def _hook_layer(text: str, pal) -> Image.Image | None:
+    """The punch text on a transparent layer the size of HOOK_BOX (plus stroke room)."""
+    try:
+        words = thumb_words(text)
+    except ValueError:
+        return None
+    x0, y0, x1, y1 = HOOK_BOX
+    pad = 40
+    layer = Image.new("RGBA", (x1 - x0 + 2 * pad, y1 - y0 + 2 * pad), (0, 0, 0, 0))
+    draw_punch_text(layer, words, pal, (pad, pad, pad + x1 - x0, pad + y1 - y0))
+    return layer
+
+
 # ---------------------------------------------------------------- drawing
 
 def _base(pal) -> Image.Image:
@@ -126,7 +206,7 @@ def _base(pal) -> Image.Image:
         d.line([(0, y), (W, y)], fill=mix(top, bottom, (y - SCENE_H) / (H - SCENE_H)))
     d.line([(0, SCENE_H), (W, SCENE_H)], fill=mix(pal["bg"], pal["fg"], 0.35), width=4)
     cx, cy = ZORB_CENTER
-    d.ellipse([cx - 250, cy + 150, cx + 250, cy + 250], fill=mix(bottom, pal["fg"], 0.12))
+    d.ellipse([cx - 300, cy + 205, cx + 300, cy + 285], fill=mix(bottom, pal["fg"], 0.12))
     return img
 
 
@@ -240,6 +320,11 @@ class Frames:
         self.levels = levels
         self.duration = duration
         self.spans = beat_spans(self.beats, words, duration)
+        self.beat_frames = [math.ceil(st * FPS - 1e-6) for st, _ in self.spans]
+        self.hook = _hook_layer(script.get("thumb_text"), self.pal)
+        self._hook_sizes: dict = {}
+        self._scene_buf = Image.new("RGB", (W, SCENE_H))
+        self.edge = mix(self.pal["bg"], (0, 0, 0), 0.45)
         self._cap_cache: dict = {}
 
     def caption_at(self, t: float):
@@ -255,6 +340,28 @@ class Frames:
             return prev, -1
         return None, -1
 
+    def _hook_card(self, scene: Image.Image, f: int) -> Image.Image:
+        """Dim the scene and draw the punch text over it (first HOOK_SECONDS only)."""
+        last = int(round(HOOK_SECONDS * FPS))
+        if self.hook is None or f >= last:
+            return scene
+        alpha = min(1.0, (last - f) / HOOK_FADE_FRAMES)
+        scene = Image.blend(scene, Image.new("RGB", scene.size, (0, 0, 0)), HOOK_DIM * alpha)
+        k = min(f, HOOK_POP_FRAMES)
+        layer = self._hook_sizes.get(k)
+        if layer is None:
+            sc = hook_scale(k)
+            layer = self.hook if sc >= 1.0 else self.hook.resize(
+                (round(self.hook.width * sc), round(self.hook.height * sc)), Image.BILINEAR)
+            self._hook_sizes[k] = layer
+        if alpha < 1.0:
+            layer = layer.copy()
+            layer.putalpha(layer.getchannel("A").point(lambda a: round(a * alpha)))
+        x0, y0, x1, y1 = HOOK_BOX
+        pos = (round((x0 + x1 - layer.width) / 2), round((y0 + y1 - layer.height) / 2))
+        scene.paste(layer, pos, layer)
+        return scene
+
     def draw(self, f: int) -> Image.Image:
         t = f / FPS
         img = self.base.copy()
@@ -262,14 +369,22 @@ class Frames:
         beat = self.beats[bi]
         s, e = self.spans[bi]
         progress = 0.0 if e <= s else min(1.0, max(0.0, (t - s) / (e - s)))
-        SCENE_PAINTERS[beat["scene"]](img, beat.get("props", {}), progress, self.pal)
+        scene = self._scene_buf             # painters cover the whole scene area
+        SCENE_PAINTERS[beat["scene"]](scene, beat.get("props", {}), progress, self.pal)
+        scale, flash = pop(f - self.beat_frames[bi]) if bi > 0 else (1.0, 0.0)
+        scene = _zoom(scene, push_zoom(progress) * scale, self.edge)
+        if flash > 0:
+            scene = Image.blend(scene, Image.new("RGB", scene.size, (255, 255, 255)), flash)
+        scene = self._hook_card(scene, f)
+        img.paste(scene, (0, 0))
         chunk, idx = self.caption_at(t)
         if chunk is not None:
             draw_caption(img, [w["word"] for w in chunk["words"]], idx, self.pal,
                          self._cap_cache)
         mouth = float(self.levels[f]) if f < len(self.levels) else 0.0
         blink = (f + 45) % BLINK_EVERY < BLINK_FRAMES
-        draw_zorb(img, beat["expression"], mouth, blink, ZORB_CENTER, 1.0)
+        cx, cy, sx, sy = zorb_pose(f, self.beat_frames[bi])
+        draw_zorb(img, beat["expression"], mouth, blink, (cx, cy), ZORB_SCALE, stretch=(sx, sy))
         return img
 
 

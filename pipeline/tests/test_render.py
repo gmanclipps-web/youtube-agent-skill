@@ -445,3 +445,116 @@ def test_build_fails_fast_on_too_few_beats(tmp_path, monkeypatch):
     pacing = [c for c in rep["checks"] if c["name"] == "pacing"][0]
     assert not pacing["ok"] and "7" in pacing["detail"]
 
+
+# ---------------------------------------------------------------- feed look (v2)
+
+def _frames(beats=None, duration=12.0, **over):
+    beats = beats or _beats8()
+    words = []
+    per = duration / len(beats)
+    for b, beat in enumerate(beats):
+        ws = beat["line"].split()
+        for k, w in enumerate(ws):
+            st = b * per + 0.1 + k * 0.3
+            words.append({"word": w, "start": st, "end": st + 0.25, "beat": b})
+    n = int(duration * render.FPS)
+    return render.Frames(_script(beats=beats, **over), words, np.zeros(n), duration)
+
+
+def _count(img, colour, box=(0, 0, 1080, 1050)):
+    a = np.asarray(img.crop(box)).reshape(-1, 3)
+    return int((a == np.array(colour)).all(axis=1).sum())
+
+
+def test_hook_card_shows_thumb_text_from_frame_0():
+    from pipeline.thumbnail import highlight_colour
+    fr = _frames()
+    hl = highlight_colour(fr.pal)
+    first = [_count(fr.draw(f), hl) for f in (0, 3, 15)]
+    white = _count(fr.draw(0), (255, 255, 255))
+    assert min(first) > 4000, first          # last word in the highlight colour, big
+    assert white > 8000                      # other words bold white
+    late = _count(fr.draw(int(2.5 * render.FPS)), hl)
+    assert late < first[0] / 4               # the card is gone after the hook
+
+
+def test_hook_card_pops_in():
+    from pipeline.thumbnail import highlight_colour
+    fr = _frames()
+    hl = np.array(highlight_colour(fr.pal))
+
+    def width(f):
+        a = np.asarray(fr.draw(f).crop((0, 0, 1080, 1050)))
+        xs = np.where((a == hl).all(axis=2).any(axis=0))[0]
+        return xs.max() - xs.min()
+    w0, w6, w12 = width(0), width(6), width(12)
+    assert 0.5 < w0 / w12 < 0.75             # starts at ~0.6 scale
+    assert abs(w6 - w12) <= 2                # full size after 6 frames
+    assert render.hook_scale(0) == pytest.approx(0.6)
+    assert render.hook_scale(6) == pytest.approx(1.0)
+    assert render.HOOK_SECONDS == pytest.approx(1.8)
+
+
+def test_hook_card_and_cover_share_drawing_code():
+    from pipeline import thumbnail
+    assert render.draw_punch_text is thumbnail.draw_punch_text
+
+
+def test_push_in_and_pop_curves():
+    assert render.push_zoom(0.0) == pytest.approx(1.0)
+    assert render.push_zoom(1.0) == pytest.approx(1.08)
+    assert 1.0 < render.push_zoom(0.5) < 1.08
+    s0, f0 = render.pop(0)
+    assert s0 == pytest.approx(0.92) and 0 < f0 <= 0.35
+    for k in range(5):
+        s, f = render.pop(k)
+        assert 0.92 <= s <= 1.0 and 0 <= f <= 0.35
+    assert render.pop(5) == (1.0, 0.0) and render.pop(40) == (1.0, 0.0)
+
+
+def test_scene_moves_within_a_beat_and_pops_at_beat_change():
+    beats = [{"line": "Look at Earth now.", "scene": "planet", "expression": "neutral",
+              "props": {}}] * 8
+    fr = _frames(beats, duration=24.0, thumb_text="WOW")
+    s1 = fr.spans[1][0]
+    f_start, f_end = int(s1 * render.FPS) + 6, int(fr.spans[1][1] * render.FPS) - 1
+    a = np.asarray(fr.draw(f_start).crop((0, 0, 1080, 1050))).astype(int)
+    b = np.asarray(fr.draw(f_end).crop((0, 0, 1080, 1050))).astype(int)
+    assert np.abs(a - b).mean() > 2          # push-in: the picture visibly moves
+    flash = np.asarray(fr.draw(int(np.ceil(s1 * render.FPS))).crop((0, 0, 1080, 1050)))
+    assert flash.mean() > a.mean() + 10      # white flash on the cut
+
+
+def test_zorb_bigger_bobs_and_squashes():
+    from PIL import Image
+    from pipeline.zorb import draw_zorb
+    assert render.ZORB_SCALE == pytest.approx(1.25)
+    poses = [render.zorb_pose(f, 0) for f in range(90)]
+    ys = [p[1] for p in poses]
+    assert 18 <= max(ys) - min(ys) <= 21     # +-10 px bob
+    period = round(1.2 * render.FPS)
+    assert render.zorb_pose(10 + period, -1000)[1] == pytest.approx(
+        render.zorb_pose(10, -1000)[1], abs=0.01)
+    assert poses[1][3] < 0.97                # squash right after the beat starts
+    assert render.zorb_pose(30, 0)[2:] == (1.0, 1.0)
+    def box(expr, center, scale, stretch=(1.0, 1.0)):
+        img = Image.new("RGBA", (1080, 2400), (0, 0, 0, 0))
+        draw_zorb(img, expr, 1.0, False, center, scale, stretch=stretch)
+        return img.getbbox()
+    for expr in ("shocked", "aha", "neutral", "confused", "smug"):
+        b0 = box(expr, (540, 1200), 1.0)
+        for f in range(0, 40):
+            cx, cy, sx, sy = render.zorb_pose(f, 0)
+            x0, y0, x1, y1 = box(expr, (cx, cy), render.ZORB_SCALE, (sx, sy))
+            assert x0 > 0 and x1 < 1080 and y1 <= 1920, (expr, f, y1)
+            assert y0 >= render.CAP_BOTTOM, (expr, f, y0)   # never under the captions
+            assert x1 - x0 >= 1.15 * (b0[2] - b0[0])         # much bigger than before
+
+
+def test_captions_bigger_and_in_safe_zone():
+    assert render.CAP_BOTTOM <= 0.8 * 1920 and render.CAP_RIGHT <= 0.88 * 1080
+    assert render.CAP_TOP >= 1050            # below the scene
+    for chunk in (["Earth", "snacks", "cost"], ["Prices", "keep", "growing."],
+                  ["The", "central", "bank"], ["Same", "money."]):
+        size = render.caption_layout(chunk)[0]
+        assert size >= 84, (chunk, size)
