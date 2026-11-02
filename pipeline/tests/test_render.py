@@ -487,8 +487,9 @@ def test_hook_card_pops_in():
         a = np.asarray(fr.draw(f).crop((0, 0, 1080, 1050)))
         xs = np.where((a == hl).all(axis=2).any(axis=0))[0]
         return xs.max() - xs.min()
-    w0, w4, w12 = width(0), width(4), width(12)
-    assert 0.9 <= w0 / w12 < 0.97            # frame 0: already >= 90% of the settled size
+    c = render.COVER_FRAMES                  # frames before this are the cover image
+    w0, w4, w12 = width(c), width(c + 4), width(c + 12)
+    assert 0.9 <= w0 / w12 < 0.97            # first video frame: already >= 90% of the settled size
     assert abs(w4 - w12) <= 2                # full size after 4 frames
     assert 0.9 <= render.hook_scale(0) < 0.95
     assert render.hook_scale(4) == pytest.approx(1.0)
@@ -584,3 +585,19 @@ def test_one_line_caption_sits_at_the_band_bottom():
                   ["The", "central", "bank"], ["Same", "money."]):
         size = render.caption_layout(chunk)[0]
         assert size >= 84, (chunk, size)
+
+
+def test_first_frames_are_the_cover():
+    import numpy as np
+    from pipeline.render import Frames, COVER_FRAMES
+    from pipeline.thumbnail import render_cover
+    s = {"topic": "inflation", "thumb_text": "SNACKS COST MORE?!",
+         "beats": [{"line": "Hi there friends", "scene": "shop", "expression": "shocked",
+                    "props": {"item": "SNACKS", "price": "$100"}}]}
+    words = [{"word": w, "start": i * 0.3, "end": i * 0.3 + 0.25, "beat": 0}
+             for i, w in enumerate(["Hi", "there", "friends"])]
+    fr = Frames(s, words, np.zeros(90), 3.0)
+    cover = np.asarray(render_cover(s).convert("RGB"), dtype=int)
+    assert COVER_FRAMES >= 3
+    assert np.abs(np.asarray(fr.draw(0), dtype=int) - cover).mean() < 1
+    assert np.abs(np.asarray(fr.draw(COVER_FRAMES), dtype=int) - cover).mean() > 10

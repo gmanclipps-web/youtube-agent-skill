@@ -49,6 +49,7 @@ SQUASH_FRAMES, SQUASH = 9, 0.12       # squash then pop back on each beat start
 BLINK_EVERY = 105        # frames (3.5 s)
 BLINK_FRAMES = 4
 
+COVER_FRAMES = 6         # the cover image itself (0.2 s): YouTube's frame picker can use it
 HOOK_SECONDS = 1.8       # cover punch text over the first scene
 HOOK_POP_FRAMES = 4      # scale 0.9 -> 1.0: frame 0 is already near full size
 HOOK_FROM = 0.92         # frame 0 shows the text at >= 90% of its settled size
@@ -327,6 +328,10 @@ class Frames:
         self.spans = beat_spans(self.beats, words, duration)
         self.beat_frames = [math.ceil(st * FPS - 1e-6) for st, _ in self.spans]
         self.hook = _hook_layer(script.get("thumb_text"), self.pal)
+        self.cover = None
+        if script.get("thumb_text"):
+            from pipeline.thumbnail import render_cover
+            self.cover = render_cover(script).convert("RGB")
         self._hook_sizes: dict = {}
         self._scene_buf = Image.new("RGB", (W, SCENE_H))
         self.edge = mix(self.pal["bg"], (0, 0, 0), 0.45)
@@ -352,7 +357,7 @@ class Frames:
             return scene
         alpha = min(1.0, (last - f) / HOOK_FADE_FRAMES)
         scene = Image.blend(scene, Image.new("RGB", scene.size, (0, 0, 0)), HOOK_DIM * alpha)
-        k = min(f, HOOK_POP_FRAMES)
+        k = min(max(0, f - COVER_FRAMES), HOOK_POP_FRAMES)   # pop starts after the cover
         layer = self._hook_sizes.get(k)
         if layer is None:
             sc = hook_scale(k)
@@ -368,6 +373,8 @@ class Frames:
         return scene
 
     def draw(self, f: int) -> Image.Image:
+        if self.cover is not None and f < COVER_FRAMES:
+            return self.cover.copy()
         t = f / FPS
         img = self.base.copy()
         bi = _beat_at(self.spans, t)

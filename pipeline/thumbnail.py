@@ -81,19 +81,74 @@ def draw_punch_text(img, words, pal, box, max_size=240):
     return size
 
 
-def render_thumbnail(script: dict, out) -> Path:
+def cover_colours(pal):
+    """Burst colour for the cover: the topic accent, unless it is greenish
+    (Zorb is green and would vanish) - then a hot orange."""
+    r, g, b = pal["accent"]
+    burst = (255, 120, 40) if (g > r + 30 and g > b + 30) else (r, g, b)
+    return {"burst": burst, "bg": pal["bg"]}
+
+
+def hero_beat(script):
+    """The beat whose picture goes on the cover: ``thumb_scene`` if given,
+    else the first beat with a number in its props, else the first beat."""
+    if isinstance(script.get("thumb_scene"), dict):
+        return script["thumb_scene"]
+    beats = script.get("beats") or []
+    for b in beats:
+        if any(any(ch.isdigit() for ch in str(v)) for v in (b.get("props") or {}).values()):
+            return b
+    return beats[0] if beats else None
+
+
+def _hero_card(img, script, pal):
+    from pipeline.scenes import SCENE_PAINTERS
+    hb = hero_beat(script)
+    if not hb or hb.get("scene") not in SCENE_PAINTERS:
+        return
+    scene = Image.new("RGBA", (W, 1050), pal["bg"] + (255,))
+    SCENE_PAINTERS[hb["scene"]](scene, hb.get("props") or {}, 1.0, pal)
+    card = scene.crop((60, 40, 1020, 1000)).resize((700, 700), Image.LANCZOS)
+    framed = Image.new("RGBA", (740, 740), (255, 255, 255, 255))
+    framed.paste(card, (20, 20))
+    framed = framed.rotate(-4, resample=Image.BICUBIC, expand=True)
+    shadow = Image.new("RGBA", framed.size, (0, 0, 0, 0))
+    shadow.paste((0, 0, 0, 150), (0, 0), framed)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18))
+    x, y = W - framed.width + 40, 640
+    img.alpha_composite(shadow, (x + 14, y + 22))
+    img.alpha_composite(framed, (x, y))
+
+
+def _arrow(img, start, end, colour=(255, 40, 60)):
+    d = ImageDraw.Draw(img)
+    d.line([start, end], fill=STROKE, width=46)
+    d.line([start, end], fill=colour, width=30)
+    ang = math.atan2(end[1] - start[1], end[0] - start[0])
+    tip = [end,
+           (end[0] - 80 * math.cos(ang - 0.5), end[1] - 80 * math.sin(ang - 0.5)),
+           (end[0] - 80 * math.cos(ang + 0.5), end[1] - 80 * math.sin(ang + 0.5))]
+    d.polygon(tip, fill=colour, outline=STROKE, width=6)
+
+
+def render_cover(script: dict) -> Image.Image:
+    """The cover as an RGBA image: huge punch text on top, the video's key
+    picture on a tilted card, a big reacting Zorb."""
     words = thumb_words(script.get("thumb_text"))
     pal = palette(script["topic"])
-    img = Image.new("RGBA", (W, H), pal["bg"] + (255,))
-    _rays(img, pal)
+    cc = cover_colours(pal)
+    img = Image.new("RGBA", (W, H), cc["bg"] + (255,))
+    _rays(img, {**pal, "accent": cc["burst"]})
+    _hero_card(img, script, pal)
+    draw_zorb(img, script.get("thumb_expression", "shocked"), 0.9, False, (300, 1560), scale=1.9)
+    draw_punch_text(img, words, {**pal, "accent": cc["burst"]}, (40, 70, W - 40, 620), max_size=260)
+    return img
 
-    draw_zorb(img, script.get("thumb_expression", "shocked"), 0.9, False, (W // 2, 1300), scale=2.1)
-    draw_punch_text(img, words, pal,
-                    ((W - TEXT_MAX_W) // 2, TEXT_TOP, (W + TEXT_MAX_W) // 2, TEXT_BOTTOM))
 
+def render_thumbnail(script: dict, out) -> Path:
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    img.convert("RGB").save(out, "JPEG", quality=90)
+    render_cover(script).convert("RGB").save(out, "JPEG", quality=90)
     return out
 
 
