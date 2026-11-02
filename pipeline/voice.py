@@ -7,8 +7,10 @@ from pathlib import Path
 
 import edge_tts
 
+from pipeline.captions import sentence_ends
+
 VOICE = "en-US-GuyNeural"
-RATE = "+8%"
+RATE = "+38%"          # ~150 words/minute, the pace of winning Shorts
 PITCH = "+12Hz"
 GAP = 0.25
 TICKS = 1e7  # edge-tts offsets are 100 ns ticks
@@ -80,9 +82,11 @@ def synthesize(beats: list[dict], workdir: Path):
             # pad with the inter-beat gap so concatenation keeps timing exact
             _ffmpeg("-i", str(mp3), "-ar", "48000", "-ac", "1",
                     "-af", f"apad=pad_dur={GAP}", "-c:a", "pcm_s16le", str(wav))
-            for w in words:
+            ends = sentence_ends(beat["line"], words)
+            for w, end in zip(words, ends):
                 words_out.append({"word": w["word"], "start": offset + w["start"],
-                                  "end": offset + w["end"], "beat": i})
+                                  "end": offset + w["end"], "beat": i,
+                                  **({"sentence_end": True} if end else {})})
             offset += _duration(wav)
             wavs.append(wav)
         listing = workdir / "concat.txt"

@@ -68,3 +68,49 @@ def test_caption_text_joins_words_with_spaces():
 
 def test_caption_text_empty():
     assert captions.caption_text([]) == ""
+
+
+def test_chunks_break_after_sentence_end():
+    words = [_w("snacks.", 0.0, 0.4, 0), _w("Nobody", 0.5, 0.9, 0), _w("told", 1.0, 1.3, 0),
+             _w("you", 1.4, 1.6, 0), _w("why?", 1.7, 2.0, 0), _w("Same", 2.1, 2.3, 0),
+             _w("snack!", 2.4, 2.7, 0), _w("Wow", 2.8, 3.0, 0)]
+    chunks = captions.chunk_words(words, max_words=3)
+    assert [[w["word"] for w in c["words"]] for c in chunks] == [
+        ["snacks."], ["Nobody", "told", "you"], ["why?"], ["Same", "snack!"], ["Wow"]]
+    two = captions.chunk_words([_w("snacks.", 0, 0.4, 0), _w("Nobody", 0.5, 0.9, 0),
+                                _w("told", 1.0, 1.3, 0)])
+    assert [[w["word"] for w in c["words"]] for c in two] == [["snacks."], ["Nobody", "told"]]
+    # closing quotes or brackets after the mark still end the sentence
+    q = captions.chunk_words([_w('"Hi."', 0, 0.4, 0), _w("Bye", 0.5, 0.9, 0)])
+    assert len(q) == 2
+
+
+def test_sentence_ends_from_script_line():
+    # edge-tts word boundaries carry no punctuation: take it from the script line
+    words = [{"word": w} for w in ["Your", "100", "dollars", "lost", "a", "bag", "of", "snacks",
+                                   "Nobody", "told", "you", "why"]]
+    line = "Your 100 dollars lost a bag of snacks. Nobody told you why."
+    ends = captions.sentence_ends(line, words)
+    assert ends == [False] * 7 + [True] + [False] * 3 + [True]
+    # a token split into several boundaries ("Earth's" -> "Earth", "s") ends on its last piece
+    ends = captions.sentence_ends("Earth's CPI. Wow", [{"word": "Earth"}, {"word": "s"},
+                                                       {"word": "CPI"}, {"word": "Wow"}])
+    assert ends == [False, False, True, False]
+    # unknown words never break alignment of later ones
+    ends = captions.sentence_ends("Hi there. Bye.", [{"word": "Hi"}, {"word": "zz"},
+                                                    {"word": "there"}, {"word": "Bye"}])
+    assert ends == [False, False, True, True]
+
+
+def test_chunks_break_on_flagged_sentence_end():
+    words = [_w("snacks", 0.0, 0.4, 0), _w("Nobody", 0.5, 0.9, 0), _w("told", 1.0, 1.3, 0)]
+    words[0]["sentence_end"] = True
+    chunks = captions.chunk_words(words)
+    assert [[w["word"] for w in c["words"]] for c in chunks] == [["snacks"], ["Nobody", "told"]]
+
+
+def test_sentence_ends_word_spanning_tokens():
+    # edge-tts may voice "100 dollars." as one boundary
+    ends = captions.sentence_ends("It is 100 dollars. Wow.", [{"word": "It"}, {"word": "is"},
+                                  {"word": "100 dollars"}, {"word": "Wow"}])
+    assert ends == [False, False, True, True]

@@ -487,11 +487,11 @@ def test_hook_card_pops_in():
         a = np.asarray(fr.draw(f).crop((0, 0, 1080, 1050)))
         xs = np.where((a == hl).all(axis=2).any(axis=0))[0]
         return xs.max() - xs.min()
-    w0, w6, w12 = width(0), width(6), width(12)
-    assert 0.5 < w0 / w12 < 0.75             # starts at ~0.6 scale
-    assert abs(w6 - w12) <= 2                # full size after 6 frames
-    assert render.hook_scale(0) == pytest.approx(0.6)
-    assert render.hook_scale(6) == pytest.approx(1.0)
+    w0, w4, w12 = width(0), width(4), width(12)
+    assert 0.9 <= w0 / w12 < 0.97            # frame 0: already >= 90% of the settled size
+    assert abs(w4 - w12) <= 2                # full size after 4 frames
+    assert 0.9 <= render.hook_scale(0) < 0.95
+    assert render.hook_scale(4) == pytest.approx(1.0)
     assert render.HOOK_SECONDS == pytest.approx(1.8)
 
 
@@ -528,7 +528,7 @@ def test_scene_moves_within_a_beat_and_pops_at_beat_change():
 def test_zorb_bigger_bobs_and_squashes():
     from PIL import Image
     from pipeline.zorb import draw_zorb
-    assert render.ZORB_SCALE == pytest.approx(1.25)
+    assert render.ZORB_SCALE >= 1.25
     poses = [render.zorb_pose(f, 0) for f in range(90)]
     ys = [p[1] for p in poses]
     assert 18 <= max(ys) - min(ys) <= 21     # +-10 px bob
@@ -553,7 +553,33 @@ def test_zorb_bigger_bobs_and_squashes():
 
 def test_captions_bigger_and_in_safe_zone():
     assert render.CAP_BOTTOM <= 0.8 * 1920 and render.CAP_RIGHT <= 0.88 * 1080
-    assert render.CAP_TOP >= 1050            # below the scene
+    assert render.CAP_TOP >= 990             # at most over the scene's floor strip
+    assert 1080 <= (render.CAP_TOP + render.CAP_BOTTOM) / 2 <= 1200
+
+
+def test_no_dead_band_between_captions_and_zorb():
+    """Zorb's art starts right under the captions band and he fills the bottom
+    half: at least 580 px tall, his top within 80 px of the band (the room
+    left for his bob, his squash-and-pop and the 'aha' antenna glow)."""
+    from PIL import Image
+    from pipeline.zorb import draw_zorb
+    img = Image.new("RGBA", (1080, 1920), (0, 0, 0, 0))
+    draw_zorb(img, "neutral", 0.0, False, render.ZORB_CENTER, render.ZORB_SCALE)
+    x0, y0, x1, y1 = img.getbbox()
+    assert y0 - render.CAP_BOTTOM <= 80
+    assert y1 - y0 >= 580                # was ~420 at 1.0x
+    assert y1 >= 1880
+
+
+def test_one_line_caption_sits_at_the_band_bottom():
+    from PIL import Image
+    pal = {"bg": (20, 20, 40), "fg": (200, 200, 220), "accent": (250, 220, 60),
+           "text": (250, 250, 255)}
+    img = Image.new("RGB", (1080, 1920), pal["bg"])
+    render.draw_caption(img, ["Same", "money."], 0, pal)
+    a = np.asarray(img)
+    rows = np.where((a != np.array(pal["bg"])).any(axis=(1, 2)))[0]
+    assert render.CAP_BOTTOM - rows.max() <= 2   # box hugs Zorb's head, not the scene
     for chunk in (["Earth", "snacks", "cost"], ["Prices", "keep", "growing."],
                   ["The", "central", "bank"], ["Same", "money."]):
         size = render.caption_layout(chunk)[0]

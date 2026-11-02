@@ -37,3 +37,21 @@ def test_voice_error_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(voice.edge_tts, "Communicate", boom)
     with pytest.raises(voice.VoiceError, match="no network"):
         voice.synthesize(BEATS, tmp_path)
+
+
+def test_voice_rate_is_feed_speed_and_pitch_kept():
+    # ~150 words/minute on the sample (measured: +8% gave 121 wpm, +38% gives 150)
+    assert voice.RATE == "+38%"
+    assert voice.PITCH == "+12Hz"
+
+
+def test_synthesize_marks_sentence_ends(tmp_path, monkeypatch):
+    async def fake_stream(text, mp3):
+        import shutil
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                        "anullsrc=r=24000:cl=mono", "-t", "0.5", str(mp3)], check=True)
+        return [{"word": w.strip(".?!"), "start": 0.01 * i, "end": 0.01 * i + 0.005}
+                for i, w in enumerate(text.split())]
+    monkeypatch.setattr(voice, "_stream", fake_stream)
+    _, words = voice.synthesize([{"line": "Same snack. Bigger number."}], tmp_path)
+    assert [w.get("sentence_end", False) for w in words] == [False, True, False, True]

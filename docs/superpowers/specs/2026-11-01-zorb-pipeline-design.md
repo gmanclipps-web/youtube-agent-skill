@@ -64,10 +64,12 @@ Publish times: 08:00, 13:00, 19:00 America/New_York (first `per_day` slots).
 - Beat structure: hook in the first 2 s -> Zorb's confusion -> explanation through one visual
   metaphor -> twist -> a loop line that leads back into the hook (no outro, no sign-off).
 - Feed look (v2, 2026-11-02, see `channel/growth-diagnosis.md`): the first 1.8 s show the
-  cover's `thumb_text` huge over the first scene (popping in, readable from frame 0); 8-14 beats
+  cover's `thumb_text` huge over the first scene (popping in 0.92 -> 1.0, readable from frame 0); 8-14 beats
   of at most 14 words, so the picture changes every 2-4 s; every scene slowly pushes in
   (zoom 1.00 -> 1.08) and each beat change pops (0.92 -> 1.0 with a short white flash); Zorb is
-  drawn at 1.25x, bobs and squashes on each beat start; captions are about 84 px or larger.
+  drawn at 1.4x right under the captions band (y 1000-1240), bobs and squashes on each beat
+  start; captions are about 84 px or larger and never run across a sentence end; the voice
+  runs at edge-tts rate +38% (about 150 words per minute).
 - Packaging: titles lead with the topic (never "Zorb"), at most 50 characters plus exactly 2
   hashtags (70 in all); every post gets the script's `pinned_comment` (a short question) as
   its first comment.

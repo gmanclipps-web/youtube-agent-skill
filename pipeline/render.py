@@ -1,8 +1,10 @@
 """Render a Zorb Short: scene + captions + Zorb per frame, piped to ffmpeg.
 
-Layout (1080x1920): scene y 0-1050, captions in the band y 1060-1305
-(x 110-950, clear of the bottom 20% and right 12%), Zorb at 1.25x centred
-near (540, 1628), always below the captions band.
+Layout (1080x1920): scene y 0-1050, captions in the band y 1000-1240 (over
+the scene's floor strip at most; x 110-950, clear of the bottom 20% and right
+12%; the box sits at the band's bottom, right over Zorb's head), Zorb at 1.4x
+centred near (540, 1600), always below the captions band and filling the
+bottom half (his lower body may sit in the bottom 20%).
 
 Made for the Shorts feed: the first HOOK_SECONDS show the cover's punch text
 (``thumb_text``, drawn by thumbnail.draw_punch_text) huge over the first scene,
@@ -32,7 +34,7 @@ FPS = 30
 TAIL = 0.5
 SR = 48000
 
-CAP_TOP, CAP_BOTTOM = 1060, 1305
+CAP_TOP, CAP_BOTTOM = 1000, 1240
 CAP_LEFT, CAP_RIGHT = 110, 950
 CAP_PAD_X, CAP_PAD_Y = 30, 20
 CAP_MAX_SIZE, CAP_MIN_SIZE = 112, 80
@@ -40,15 +42,16 @@ CAP_ONE_LINE_MIN = 84
 CAP_FLOOR = 40
 ELLIPSIS = "\u2026"
 CAP_HOLD = 0.35          # keep a caption up through short pauses (s)
-ZORB_CENTER = (540, 1628)
-ZORB_SCALE = 1.25
+ZORB_CENTER = (540, 1600)
+ZORB_SCALE = 1.4
 BOB_PX, BOB_PERIOD = 10, 1.2          # gentle idle bob: +-10 px, 1.2 s
 SQUASH_FRAMES, SQUASH = 9, 0.12       # squash then pop back on each beat start
 BLINK_EVERY = 105        # frames (3.5 s)
 BLINK_FRAMES = 4
 
 HOOK_SECONDS = 1.8       # cover punch text over the first scene
-HOOK_POP_FRAMES = 6      # scale 0.6 -> 1.0
+HOOK_POP_FRAMES = 4      # scale 0.9 -> 1.0: frame 0 is already near full size
+HOOK_FROM = 0.92         # frame 0 shows the text at >= 90% of its settled size
 HOOK_FADE_FRAMES = 4     # fade out at the end of the hook
 HOOK_BOX = (110, 110, 930, 940)       # inside the scene, clear of the right 12%
 HOOK_DIM = 0.6           # darken the scene behind the punch text
@@ -150,8 +153,8 @@ def pop(k: int) -> tuple:
 
 
 def hook_scale(k: int) -> float:
-    """Hook-card scale ``k`` frames in: 0.6 at frame 0, 1.0 from HOOK_POP_FRAMES on."""
-    return 0.6 + 0.4 * ease_out(min(1.0, max(0, k) / HOOK_POP_FRAMES))
+    """Hook-card scale ``k`` frames in: HOOK_FROM at frame 0, 1.0 from HOOK_POP_FRAMES on."""
+    return HOOK_FROM + (1.0 - HOOK_FROM) * ease_out(min(1.0, max(0, k) / HOOK_POP_FRAMES))
 
 
 def zorb_pose(f: int, beat_frame: int) -> tuple:
@@ -206,7 +209,9 @@ def _base(pal) -> Image.Image:
         d.line([(0, y), (W, y)], fill=mix(top, bottom, (y - SCENE_H) / (H - SCENE_H)))
     d.line([(0, SCENE_H), (W, SCENE_H)], fill=mix(pal["bg"], pal["fg"], 0.35), width=4)
     cx, cy = ZORB_CENTER
-    d.ellipse([cx - 300, cy + 205, cx + 300, cy + 285], fill=mix(bottom, pal["fg"], 0.12))
+    k = ZORB_SCALE
+    d.ellipse([cx - 240 * k, cy + 165 * k, cx + 240 * k, cy + 225 * k],
+              fill=mix(bottom, pal["fg"], 0.12))
     return img
 
 
@@ -285,7 +290,7 @@ def draw_caption(img: Image.Image, texts: list[str], current: int, pal: dict,
     block_h = len(lines) * line_h
     widest = max(w for _, w in lines)
     mid_x = (CAP_LEFT + CAP_RIGHT) / 2
-    mid_y = (CAP_TOP + CAP_BOTTOM) / 2
+    mid_y = CAP_BOTTOM - CAP_PAD_Y - block_h / 2      # bottom-anchored: over Zorb's head
     box = [mid_x - widest / 2 - CAP_PAD_X, mid_y - block_h / 2 - CAP_PAD_Y,
            mid_x + widest / 2 + CAP_PAD_X, mid_y + block_h / 2 + CAP_PAD_Y]
     box = [max(CAP_LEFT, box[0]), max(CAP_TOP, box[1]),
