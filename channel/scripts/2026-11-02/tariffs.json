@@ -1,0 +1,114 @@
+{
+  "topic": "tariffs",
+  "title": "Who Really Pays the Tax at the Border? #money #tariffs",
+  "description": "Zorb learns what a tariff is: a tax collected when goods clear customs, paid by the importer, not the foreign seller. Facts come from the International Trade Administration (trade.gov) and U.S. Customs and Border Protection.\n\nEducation, not financial advice.\n\n#Shorts #tariffs #trade",
+  "tags": [
+    "tariffs",
+    "tariffs explained",
+    "what is a tariff",
+    "import duty",
+    "trade",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 67,
+  "thumb_text": "NOT THE SELLER",
+  "thumb_expression": "confused",
+  "pinned_comment": "What imported thing do you buy the most?",
+  "beats": [
+    {
+      "line": "Stop. Your imports from 20 countries can skip the border tax. Why?",
+      "scene": "planet",
+      "expression": "shocked",
+      "props": {
+        "label": "20 COUNTRIES"
+      }
+    },
+    {
+      "line": "Zorb learned the border tax has a name. A tariff, or duty.",
+      "scene": "vault",
+      "expression": "confused",
+      "props": {
+        "label": "TARIFF",
+        "open": false
+      }
+    },
+    {
+      "line": "It gets collected when goods clear customs.",
+      "scene": "shop",
+      "expression": "neutral",
+      "props": {
+        "item": "CUSTOMS",
+        "price": "TAX"
+      }
+    },
+    {
+      "line": "And it raises the cost of the product to the buyer.",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "up",
+        "label": "COST UP"
+      }
+    },
+    {
+      "line": "Twist. The foreign seller does not pay it.",
+      "scene": "planet",
+      "expression": "confused",
+      "props": {
+        "label": "SELLER"
+      }
+    },
+    {
+      "line": "In the US, the importer is responsible for the duty.",
+      "scene": "money_stack",
+      "expression": "shocked",
+      "props": {}
+    },
+    {
+      "line": "And the rule book lists rates for virtually every item.",
+      "scene": "vault",
+      "expression": "aha",
+      "props": {
+        "label": "RULE BOOK",
+        "open": true
+      }
+    },
+    {
+      "line": "It is the size of an unabridged dictionary.",
+      "scene": "shop",
+      "expression": "shocked",
+      "props": {
+        "item": "DICTIONARY",
+        "price": "HUGE"
+      }
+    },
+    {
+      "line": "But the US has free trade deals with more than 20 countries.",
+      "scene": "planet",
+      "expression": "aha",
+      "props": {
+        "label": "TRADE DEALS"
+      }
+    },
+    {
+      "line": "Goods covered by those deals can enter duty free.",
+      "scene": "stock_chart",
+      "expression": "smug",
+      "props": {
+        "trend": "down",
+        "label": "NO DUTY"
+      }
+    },
+    {
+      "line": "So which of your stuff skips the tax? Zorb is checking.",
+      "scene": "calendar",
+      "expression": "smug",
+      "props": {
+        "start": "June"
+      }
+    }
+  ]
+}

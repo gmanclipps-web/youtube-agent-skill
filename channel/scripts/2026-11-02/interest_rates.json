@@ -1,0 +1,123 @@
+{
+  "topic": "interest_rates",
+  "title": "Who Sets the Price of Borrowing Money? #money #interestrates",
+  "description": "Zorb finds the Federal Open Market Committee, the 12 people who set the federal funds target range, the key rate banks charge each other. Figures come from the Federal Reserve.\n\nEducation, not financial advice.\n\n#Shorts #interestrates #federalreserve",
+  "tags": [
+    "interest rates",
+    "interest rates explained",
+    "federal reserve",
+    "FOMC",
+    "federal funds rate",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 71,
+  "thumb_text": "12 PEOPLE DECIDE",
+  "thumb_expression": "shocked",
+  "pinned_comment": "Did you know only 12 people vote on this rate?",
+  "beats": [
+    {
+      "line": "Stop. 12 people set your bank's borrowing rate: 3.75 to 4 percent. How?",
+      "scene": "vault",
+      "expression": "shocked",
+      "props": {
+        "label": "3.75 TO 4%",
+        "open": false
+      }
+    },
+    {
+      "line": "Zorb tracked them down. The group is called the FOMC.",
+      "scene": "planet",
+      "expression": "confused",
+      "props": {
+        "label": "FOMC"
+      }
+    },
+    {
+      "line": "It has 12 members.",
+      "scene": "planet",
+      "expression": "neutral",
+      "props": {
+        "label": "12 MEMBERS"
+      }
+    },
+    {
+      "line": "The 7 Fed governors, plus the president of the New York Fed.",
+      "scene": "shop",
+      "expression": "aha",
+      "props": {
+        "item": "GOVERNORS",
+        "price": "VOTE"
+      }
+    },
+    {
+      "line": "The other seats rotate between bank presidents. They take turns.",
+      "scene": "calendar",
+      "expression": "confused",
+      "props": {
+        "start": "January"
+      }
+    },
+    {
+      "line": "They meet 8 times a year on schedule.",
+      "scene": "calendar",
+      "expression": "neutral",
+      "props": {
+        "start": "March"
+      }
+    },
+    {
+      "line": "Their job? Pick the price of borrowing money.",
+      "scene": "money_stack",
+      "expression": "aha",
+      "props": {}
+    },
+    {
+      "line": "In 2020 they cut it to 0 to 0.25 percent.",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "down",
+        "label": "0-0.25%"
+      }
+    },
+    {
+      "line": "By 2023 it had climbed to 5.5 percent.",
+      "scene": "price_tag",
+      "expression": "shocked",
+      "props": {
+        "from": "0.25",
+        "to": "5.5",
+        "currency": ""
+      }
+    },
+    {
+      "line": "In September 2026 they raised it again by 25 basis points.",
+      "scene": "stock_chart",
+      "expression": "confused",
+      "props": {
+        "trend": "up",
+        "label": "+25 BP"
+      }
+    },
+    {
+      "line": "In October they held it right there.",
+      "scene": "vault",
+      "expression": "smug",
+      "props": {
+        "label": "HOLD",
+        "open": false
+      }
+    },
+    {
+      "line": "So who are these rate setters? Zorb counted them again.",
+      "scene": "planet",
+      "expression": "smug",
+      "props": {
+        "label": "WHO?"
+      }
+    }
+  ]
+}
