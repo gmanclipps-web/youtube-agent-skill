@@ -29,7 +29,7 @@
       }
     },
     {
-      "line": "Same basket of snacks. Now it costs 107 dollars.",
+      "line": "Same basket. Now it costs 107 dollars.",
       "scene": "price_tag",
       "expression": "confused",
       "props": {
@@ -38,7 +38,7 @@
       }
     },
     {
-      "line": "Your 100 dollars did not change. The price did.",
+      "line": "Your 100 dollars did not change.",
       "scene": "money_stack",
       "expression": "confused",
       "props": {
@@ -46,18 +46,35 @@
       }
     },
     {
-      "line": "That jump is 7 percent. Earthlings call it inflation.",
+      "line": "Only the price did.",
       "scene": "shop",
       "expression": "aha",
       "props": {
         "item": "BASKET",
-        "price": "+7%"
+        "price": "$107"
       }
     },
     {
-      "line": "Not just snacks. Prices across the whole economy rise.",
-      "scene": "planet",
+      "line": "That jump is 7 percent.",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "up",
+        "label": "+7%"
+      }
+    },
+    {
+      "line": "Earthlings call it inflation.",
+      "scene": "vault",
       "expression": "neutral",
+      "props": {
+        "label": "INFLATION"
+      }
+    },
+    {
+      "line": "Prices rise across the whole economy, not just snacks.",
+      "scene": "planet",
+      "expression": "confused",
       "props": {
         "label": "EARTH"
       }
@@ -88,11 +105,19 @@
       }
     },
     {
-      "line": "Its goal is 2 percent a year. Not zero. Two.",
+      "line": "Its goal is 2 percent a year.",
       "scene": "planet",
       "expression": "shocked",
       "props": {
         "label": "GOAL 2%"
+      }
+    },
+    {
+      "line": "Not zero. Two.",
+      "scene": "vault",
+      "expression": "aha",
+      "props": {
+        "label": "NOT ZERO"
       }
     },
     {
