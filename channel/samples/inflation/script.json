@@ -1,67 +1,86 @@
 {
   "topic": "inflation",
-  "title": "Zorb Learns Why $100 Buys Less Every Year",
-  "description": "Zorb, a very confused alien, finds out why Earth snacks cost more every year. Inflation means prices rise across the whole economy, and Earth's central bank actually aims for a little of it on purpose. Figures: U.S. Bureau of Labor Statistics CPI for the 12 months ending September 2026, and the Federal Reserve's 2 percent goal, which it measures with a different price index (PCE).\n\nEducation, not financial advice.\n\n#Shorts #inflation #personalfinance",
+  "title": "Where Did Your $100 Go? #money #inflation",
+  "description": "Zorb finds out why the same 100 dollars buys a smaller basket of snacks: inflation, a rise in prices across the whole economy. Earth's central bank even aims for a little of it on purpose. Figures: the U.S. Bureau of Labor Statistics (its 100-to-107 dollar example and the CPI for the 12 months ending September 2026) and the Federal Reserve's 2 percent goal, which it measures with a different price index (PCE).\n\nEducation, not financial advice.\n\n#Shorts #inflation #personalfinance",
   "tags": [
     "inflation",
     "what is inflation",
     "inflation explained",
     "CPI",
     "Federal Reserve",
-    "2 percent inflation",
+    "why prices go up",
     "personal finance",
     "money basics",
     "Zorb",
     "cartoon alien"
   ],
-  "hook_score": 60,
+  "hook_score": 69,
   "thumb_text": "SNACKS COST MORE?!",
   "thumb_expression": "confused",
+  "pinned_comment": "What got more expensive for you this year?",
   "beats": [
     {
-      "line": "Your snacks cost more every year and nobody on Earth is surprised. Why?",
+      "line": "Your 100 dollars lost a bag of snacks. Nobody told you why.",
       "scene": "shop",
-      "expression": "confused",
-      "props": {
-        "item": "SNACKS"
-      }
-    },
-    {
-      "line": "Same snack. Bigger number. Earthlings call this inflation.",
-      "scene": "planet",
-      "expression": "confused",
-      "props": {
-        "label": "EARTH"
-      }
-    },
-    {
-      "line": "Official Earth example: a basket that cost 100 dollars now costs 107. That is 7 percent.",
-      "scene": "price_tag",
       "expression": "shocked",
+      "props": {
+        "item": "SNACKS",
+        "price": "$100"
+      }
+    },
+    {
+      "line": "Same basket of snacks. Now it costs 107 dollars.",
+      "scene": "price_tag",
+      "expression": "confused",
       "props": {
         "from": "100",
         "to": "107"
       }
     },
     {
-      "line": "Same money. Smaller basket. Very sneaky, Earthlings.",
+      "line": "Your 100 dollars did not change. The price did.",
+      "scene": "money_stack",
+      "expression": "confused",
+      "props": {
+        "amount": "100"
+      }
+    },
+    {
+      "line": "That jump is 7 percent. Earthlings call it inflation.",
       "scene": "shop",
       "expression": "aha",
       "props": {
         "item": "BASKET",
-        "price": "$100"
+        "price": "+7%"
       }
     },
     {
-      "line": "One Earth price meter says prices rose 3.7 percent in 12 months.",
-      "scene": "calendar",
+      "line": "Not just snacks. Prices across the whole economy rise.",
+      "scene": "planet",
+      "expression": "neutral",
+      "props": {
+        "label": "EARTH"
+      }
+    },
+    {
+      "line": "Earth's price meter, the CPI, rose in the last 12 months.",
+      "scene": "stock_chart",
       "expression": "shocked",
+      "props": {
+        "trend": "up",
+        "label": "+3.7%"
+      }
+    },
+    {
+      "line": "So the same money buys a little less.",
+      "scene": "calendar",
+      "expression": "confused",
       "props": {
         "start": "October"
       }
     },
     {
-      "line": "Twist: Earth's central bank wants inflation. On its own meter, the goal is 2 percent a year.",
+      "line": "Twist: Earth's central bank wants some inflation. On purpose.",
       "scene": "vault",
       "expression": "smug",
       "props": {
@@ -69,18 +88,21 @@
       }
     },
     {
-      "line": "Not zero. Two. Zorb is still processing.",
+      "line": "Its goal is 2 percent a year. Not zero. Two.",
       "scene": "planet",
-      "expression": "confused",
+      "expression": "shocked",
       "props": {
-        "label": "EARTH"
+        "label": "GOAL 2%"
       }
     },
     {
-      "line": "Zorb will return. Earth money remains confusing.",
-      "scene": "planet",
-      "expression": "smug",
-      "props": {}
+      "line": "So when an Earthling asks where their money went, say:",
+      "scene": "shop",
+      "expression": "aha",
+      "props": {
+        "item": "SNACKS",
+        "price": "$100"
+      }
     }
   ]
 }

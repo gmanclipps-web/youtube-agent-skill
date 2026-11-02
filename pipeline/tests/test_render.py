@@ -34,13 +34,35 @@ def _sine_wav(path, seconds=2.0, sr=48000):
 
 
 def _script(**over):
-    s = {"topic": "inflation", "title": "Why Earth Snacks Cost More",
+    s = {"topic": "inflation", "title": "Why Earth Snacks Cost More #money #inflation",
          "description": f"Zorb learns about prices. {DISC}", "tags": ["money"],
          "hook_score": 70, "thumb_text": "PRICES JUMPED?!",
+         "pinned_comment": "What got pricier for you?",
          "beats": [{"line": "Earth snacks cost more.", "scene": "price_tag",
                     "expression": "confused", "props": {"from": "1", "to": "1.50"}}]}
     s.update(over)
     return s
+
+
+SCENE_CYCLE = ["price_tag", "shop", "planet", "vault", "calendar", "money_stack",
+               "stock_chart", "credit_card"]
+LINES8 = ["Snacks cost 1 then 1.50.", "Same snack.", "Bigger number.", "Earth calls it inflation.",
+          "Prices rise.", "Money shrinks.", "Zorb is puzzled.", "Why do snacks cost more?"]
+
+
+def _beats8():
+    return [{"line": line, "scene": sc, "expression": "confused", "props": {}}
+            for line, sc in zip(LINES8, SCENE_CYCLE)]
+
+
+def _words_for(beats, step=0.07):
+    out = []
+    for b, beat in enumerate(beats):
+        for w in beat["line"].split():
+            i = len(out)
+            out.append({"word": w, "start": 0.05 + i * step, "end": 0.05 + i * step + step * 0.8,
+                        "beat": b})
+    return out
 
 
 WORDS = [{"word": "Earth", "start": 0.1, "end": 0.5, "beat": 0},
@@ -164,9 +186,7 @@ def test_technical_size_audio_and_words(tmp_path):
 
 def _setup(tmp_path, facts="Snacks went from 1 to 1.50.", script=None):
     sp = tmp_path / "script.json"
-    sp.write_text(json.dumps(script or _script(
-        beats=[{"line": "Snacks cost 1 then 1.50.", "scene": "price_tag",
-                "expression": "confused", "props": {}}])))
+    sp.write_text(json.dumps(script or _script(beats=_beats8())))
     fd = tmp_path / "facts"
     fd.mkdir()
     if facts is not None:
@@ -265,17 +285,15 @@ def test_build_end_to_end_with_fake_voice(tmp_path, monkeypatch):
     def fake(beats, workdir):
         Path(workdir).mkdir(parents=True, exist_ok=True)
         wav = _sine_wav(Path(workdir) / "voice.wav", 2.0)
-        words = [{"word": w, "start": 0.2 + i * 0.3, "end": 0.45 + i * 0.3, "beat": 0}
-                 for i, w in enumerate("Snacks cost 1 then 1.50.".split())]
-        return wav, words
+        return wav, _words_for(beats)
     monkeypatch.setattr(build, "synthesize", fake)
     sp, fd = _setup(tmp_path)
     out = tmp_path / "out"
     assert build.main([str(sp), str(out), "--facts", str(fd)]) == 0
     rep = json.loads((out / "report.json").read_text())
     assert rep["ok"] is True and rep["error"] is None
-    assert rep["scenes"] == ["price_tag"]
-    assert {c["name"] for c in rep["checks"]} == {"hook", "metadata", "facts",
+    assert rep["scenes"] == SCENE_CYCLE
+    assert {c["name"] for c in rep["checks"]} == {"hook", "metadata", "pacing", "facts",
                                                   "variety", "technical"}
     assert 2.4 < rep["duration"] < 2.7
     assert (out / "video.mp4").exists()
@@ -357,9 +375,7 @@ def _fake_voice_ok(monkeypatch):
     def fake(beats, workdir):
         Path(workdir).mkdir(parents=True, exist_ok=True)
         wav = _sine_wav(Path(workdir) / "voice.wav", 2.0)
-        words = [{"word": w, "start": 0.2 + i * 0.3, "end": 0.45 + i * 0.3, "beat": 0}
-                 for i, w in enumerate("Snacks cost 1 then 1.50.".split())]
-        return wav, words
+        return wav, _words_for(beats)
     monkeypatch.setattr(build, "synthesize", fake)
 
 
@@ -418,3 +434,14 @@ def test_build_clears_stale_thumbnail(tmp_path, monkeypatch):
     assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1 and calls == []
     assert not (out / "thumbnail.jpg").exists()
     assert json.loads((out / "report.json").read_text())["thumbnail"] is None
+
+
+def test_build_fails_fast_on_too_few_beats(tmp_path, monkeypatch):
+    calls = _no_voice(monkeypatch)
+    sp, fd = _setup(tmp_path, script=_script(beats=_beats8()[:7]))
+    out = tmp_path / "out"
+    assert build.main([str(sp), str(out), "--facts", str(fd)]) == 1 and calls == []
+    rep = json.loads((out / "report.json").read_text())
+    pacing = [c for c in rep["checks"] if c["name"] == "pacing"][0]
+    assert not pacing["ok"] and "7" in pacing["detail"]
+

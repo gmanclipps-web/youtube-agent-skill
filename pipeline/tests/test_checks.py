@@ -1,13 +1,15 @@
 from pipeline.checks import (normalise_numbers, check_facts, check_metadata,
-                             check_variety, check_hook)
+                             check_variety, check_hook, check_pacing)
 
 DISC = "Education, not financial advice."
 
 
 def script(lines=("Hello.",), scenes=None, **over):
     scenes = scenes or ["shop"] * len(lines)
-    s = {"topic": "t", "title": "Zorb Discovers Inflation", "description": f"About money. {DISC}",
-         "tags": ["a"], "hook_score": 60, "thumb_text": "PRICES JUMPED?!",
+    s = {"topic": "t", "title": "Why Do Earth Prices Rise? #money #inflation",
+         "description": f"About money. {DISC}",
+         "tags": ["a"], "hook_score": 60, "thumb_text": "SNACKS JUMPED?!",
+         "pinned_comment": "What got pricier for you this year?",
          "beats": [{"line": l, "scene": sc, "expression": "neutral", "props": {}}
                    for l, sc in zip(lines, scenes)]}
     s.update(over)
@@ -33,14 +35,79 @@ def test_facts_fail_on_banned_phrase():
 
 
 def test_metadata_requires_disclaimer_and_title_len():
-    assert check_metadata(script()).ok
+    r = check_metadata(script())
+    assert r.ok, r.detail
     assert not check_metadata(script(description="About money.")).ok
-    assert not check_metadata(script(title="x" * 61)).ok
-    assert check_metadata(script(title="x" * 60)).ok
+    tags = " #money #inflation"
+    assert check_metadata(script(title="x" * 50 + tags)).ok
+    r = check_metadata(script(title="x" * 51 + tags))
+    assert not r.ok and "50" in r.detail
+    r = check_metadata(script(title="x" * 50 + " #personalfinance #inflationexplained"))
+    assert not r.ok and "70" in r.detail
+
+
+def test_metadata_title_leads_with_topic_not_zorb():
+    r = check_metadata(script(title="Zorb Learns Why Prices Rise #money #inflation"))
+    assert not r.ok and "Zorb" in r.detail
+    r = check_metadata(script(title="zorb: why prices rise #money #inflation"))
+    assert not r.ok
+    # Zorb later in the title is fine
+    assert check_metadata(script(title="Why Prices Rise, Says Zorb #money #inflation")).ok
+
+
+def test_metadata_title_ends_with_exactly_two_hashtags():
+    for bad in ("Why Do Prices Rise?", "Why Do Prices Rise? #inflation",
+                "Why Do Prices Rise? #money #inflation #shorts",
+                "Why #money Prices Rise #inflation", "Why Do Prices Rise? #money #2026"):
+        r = check_metadata(script(title=bad))
+        assert not r.ok and "hashtag" in r.detail, bad
+    assert check_metadata(script(title="Why Do Prices Rise?  #money  #inflation")).ok
+
+
+def test_metadata_pinned_comment_rules():
+    s = script()
+    del s["pinned_comment"]
+    r = check_metadata(s)
+    assert not r.ok and "pinned_comment" in r.detail
+    for bad in ("", "Tell us below.", "x" * 120 + "?",
+                "Seen this? See https://bls.gov?", "Read www.bls.gov first?",
+                "Check bls.gov, what do you think?"):
+        r = check_metadata(script(pinned_comment=bad))
+        assert not r.ok and "pinned_comment" in r.detail, bad
+    assert check_metadata(script(pinned_comment="x" * 119 + "?")).ok
+
+
+def test_facts_cover_pinned_comment():
+    r = check_facts(script(["Prices rose 2 percent."], pinned_comment="Did yours rise 9%?"),
+                    "Inflation was 2%.")
+    assert not r.ok and "9" in r.detail and "pinned comment" in r.detail
+    assert check_facts(script(["Prices rose 2 percent."],
+                              pinned_comment="Is 2 percent too much?"), "Inflation was 2%.").ok
+    r = check_facts(script(["Hello."], pinned_comment="Which stock will go up?"), "")
+    assert not r.ok and "pinned comment" in r.detail
+
+
+def test_pacing_needs_8_to_14_short_beats():
+    assert not check_pacing(script(["Hi."] * 7)).ok
+    assert check_pacing(script(["Hi."] * 8)).ok
+    assert check_pacing(script(["Hi."] * 14)).ok
+    r = check_pacing(script(["Hi."] * 15))
+    assert not r.ok and "15" in r.detail
+    r = check_pacing(script(["Hi."] * 7 + [" ".join(["word"] * 15)]))
+    assert not r.ok and "beats[7]" in r.detail and "14" in r.detail
+    assert check_pacing(script(["Hi."] * 7 + [" ".join(["word"] * 14)])).ok
+
+
+def test_variety_ignores_shared_hashtags():
+    s = script(title="Why Do Prices Rise? #money #inflation")
+    r = check_variety(s, [{"title": "Where Does Cash Go? #money #inflation", "scenes": []}])
+    assert r.ok, r.detail
+    r = check_variety(s, [{"title": "Why Do Prices Rise?!", "scenes": []}])
+    assert not r.ok
 
 
 def test_variety_fails_similar_title():
-    r = check_variety(script(), [{"title": "Zorb Discovers Inflation!", "scenes": ["vault"]}])
+    r = check_variety(script(), [{"title": "Why Do Earth Prices Rise?!", "scenes": ["vault"]}])
     assert not r.ok
 
 
@@ -202,14 +269,15 @@ def test_facts_banned_phrase_in_thumb_text():
 
 
 def test_metadata_thumb_must_not_repeat_title_words():
-    ok = check_metadata(script(title="Zorb Discovers Inflation", thumb_text="PRICES JUMPED?!"))
+    t = " #money #prices"
+    ok = check_metadata(script(title="Inflation, Explained" + t, thumb_text="SNACKS JUMPED?!"))
     assert ok.ok, ok.detail
-    r = check_metadata(script(title="Zorb Discovers Inflation", thumb_text="INFLATION?!"))
+    r = check_metadata(script(title="Inflation, Explained" + t, thumb_text="INFLATION?!"))
     assert not r.ok and "inflation" in r.detail and "thumb" in r.detail
-    r = check_metadata(script(title="Why Earth Snacks Cost More", thumb_text="snacks, cost!"))
+    r = check_metadata(script(title="Why Earth Snacks Cost More" + t, thumb_text="snacks, cost!"))
     assert not r.ok and "snacks" in r.detail and "cost" in r.detail
     # short words (under 4 letters) may repeat
-    assert check_metadata(script(title="Why $100 Buys Less", thumb_text="WHY?! 100")).ok
+    assert check_metadata(script(title="Why $100 Buys Less" + t, thumb_text="WHY?! 100")).ok
 
 
 def test_metadata_requires_thumb_text():

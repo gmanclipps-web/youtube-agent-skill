@@ -62,13 +62,21 @@ Publish times: 08:00, 13:00, 19:00 America/New_York (first `per_day` slots).
   bottom 20% and right edge where YouTube overlays sit).
 - Quiet procedurally generated music bed (no licensed audio).
 - Beat structure: hook in the first 2 s -> Zorb's confusion -> explanation through one visual
-  metaphor -> twist -> recurring sign-off line.
+  metaphor -> twist -> a loop line that leads back into the hook (no outro, no sign-off).
+- Feed look (v2, 2026-11-02, see `channel/growth-diagnosis.md`): the first 1.8 s show the
+  cover's `thumb_text` huge over the first scene (popping in, readable from frame 0); 8-14 beats
+  of at most 14 words, so the picture changes every 2-4 s; every scene slowly pushes in
+  (zoom 1.00 -> 1.08) and each beat change pops (0.92 -> 1.0 with a short white flash); Zorb is
+  drawn at 1.25x, bobs and squashes on each beat start; captions are about 84 px or larger.
+- Packaging: titles lead with the topic (never "Zorb"), at most 50 characters plus exactly 2
+  hashtags (70 in all); every post gets the script's `pinned_comment` (a short question) as
+  its first comment.
 
 ## Checks (all must pass)
 
 1. **Facts.** Every number and named claim in the script appears in `channel/facts/<topic>.md`
    (each fact has a source URL). The code checks every number (digits and number words, a lone
-   "one" excepted) in the spoken lines, props, title, description, tags and thumbnail text. Bullets marked
+   "one" excepted) in the spoken lines, props, title, description, tags, thumbnail text and pinned comment. Bullets marked
    `(as of: YYYY-MM-DD)` expire 45 days later; a number found only in expired bullets fails.
    Runs never edit fact sheets. Scripts may not recommend specific securities, predict prices,
    or give personalised advice; a banned-phrase list (checked in lines, title, description,
@@ -77,14 +85,18 @@ Publish times: 08:00, 13:00, 19:00 America/New_York (first `per_day` slots).
    the spoken script.
 3. **Variety.** Title not within 0.8 similarity of any title from the last 30 days; scene sequence
    differs from each of the last 10 videos.
-4. **Metadata.** Description contains "Education, not financial advice."; title <= 60 chars;
-   `thumb_text` shares no word of 4+ letters with the title.
+4. **Metadata.** Description contains "Education, not financial advice."; title does not start
+   with "Zorb", <= 50 chars before exactly 2 trailing hashtags, <= 70 chars in all;
+   `thumb_text` shares no word of 4+ letters with the title; `pinned_comment` is a question
+   (ends with "?") of <= 120 chars without links.
+5. **Pacing.** 8-14 beats, each line <= 14 words.
 
 ## Metricool post fields
 
 `providers [{network: youtube}]`, `youtubeData {type: short, title, privacy: public, tags,
 category: EDUCATION, madeForKids: false, isAiGeneratedContent: false}`, `autoPublish: true`,
-`media [raw URL]`, `videoThumbnailUrl` (raw URL of the matching `.jpg`), timezone from brand
+`media [raw URL]`, `videoThumbnailUrl` (raw URL of the matching `.jpg`), `firstCommentText`
+(the script's `pinned_comment`), timezone from brand
 settings.
 
 ## Failure handling

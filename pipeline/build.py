@@ -3,7 +3,7 @@
     python3 -m pipeline.build <script.json> <outdir> [--recent channel/log] [--facts channel/facts]
                               [--today YYYY-MM-DD]
 
-Content checks (hook, metadata, facts, variety) run first; if any fails the
+Content checks (hook, metadata, pacing, facts, variety) run first; if any fails the
 voice is never called. Exit 0 only if every check passes. "Today" (for the
 title window and for expiring "(as of: ...)" fact bullets) defaults to the
 America/New_York date. After every check passes, the Shorts cover is
@@ -24,7 +24,7 @@ from pipeline import media as media_mod
 from pipeline import render as render_mod
 from pipeline.captions import caption_text, chunk_words
 from pipeline.checks import (CheckResult, check_facts, check_hook, check_metadata,
-                             check_technical, check_variety)
+                             check_pacing, check_technical, check_variety)
 from pipeline.script_schema import load_script
 from pipeline.thumbnail import H as THUMB_H, W as THUMB_W, render_thumbnail
 from pipeline.voice import VoiceError, synthesize
@@ -90,7 +90,7 @@ def variety(script, titles, scenes) -> CheckResult:
 
 def content_checks(script, facts_dir, recent_dir, today=None) -> list:
     today = _as_date(today)
-    checks = [check_hook(script), check_metadata(script)]
+    checks = [check_hook(script), check_metadata(script), check_pacing(script)]
     facts_path = Path(facts_dir) / f"{script['topic']}.md"
     try:
         facts_text = facts_path.read_text(encoding="utf-8")

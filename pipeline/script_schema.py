@@ -4,6 +4,7 @@ import json
 SCENES = ("shop", "price_tag", "vault", "stock_chart", "credit_card",
           "planet", "calendar", "money_stack")
 EXPRESSIONS = ("neutral", "confused", "shocked", "aha", "smug")
+MAX_LINE_WORDS = 14     # one beat = one picture; keep it short (checks.check_pacing too)
 
 
 def _is_number(v):
@@ -26,12 +27,15 @@ def load_script(path: str) -> dict:
         script = json.load(f)
     if not isinstance(script, dict):
         raise ValueError("script must be a JSON object")
-    for key in ("topic", "title", "description", "tags", "hook_score", "thumb_text", "beats"):
+    for key in ("topic", "title", "description", "tags", "hook_score", "thumb_text",
+                "pinned_comment", "beats"):
         if key not in script:
             raise ValueError(f"missing required field: {key}")
     for key in ("topic", "title", "description"):
         if not isinstance(script[key], str):
             raise ValueError(f"field {key} must be a string")
+    if not isinstance(script["pinned_comment"], str) or not script["pinned_comment"].strip():
+        raise ValueError("field pinned_comment must be a non-empty string")
     if not isinstance(script["tags"], list):
         raise ValueError("field tags must be a list")
     for i, tag in enumerate(script["tags"]):
@@ -50,6 +54,9 @@ def load_script(path: str) -> dict:
         line = beat.get("line")
         if not isinstance(line, str) or not line.strip():
             raise ValueError(f"{where}.line must be a non-empty string")
+        n = len(line.split())
+        if n > MAX_LINE_WORDS:
+            raise ValueError(f"{where}.line has {n} words (max {MAX_LINE_WORDS})")
         if beat.get("scene") not in SCENES:
             raise ValueError(f"{where}.scene {beat.get('scene')!r} not in {SCENES}")
         if beat.get("expression") not in EXPRESSIONS:

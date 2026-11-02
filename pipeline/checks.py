@@ -10,7 +10,12 @@ from difflib import SequenceMatcher
 BANNED_PHRASES = ("you should buy", "guaranteed", "will go up", "will crash",
                   "buy now", "financial advice for you")
 DISCLAIMER = "Education, not financial advice."
-MAX_TITLE = 60
+MAX_TITLE = 70            # whole title, hashtags included
+MAX_TITLE_TEXT = 50       # the words before the hashtags
+TITLE_HASHTAGS = 2        # exactly this many, at the end
+MAX_PINNED = 120          # pinned (first) comment
+MIN_BEATS, MAX_BEATS = 8, 14
+MAX_LINE_WORDS = 14       # so the picture changes every ~2-4 s
 HOOK_MIN = 65
 TITLE_SIMILARITY_MAX = 0.8
 VIDEO_SIZE = (1080, 1920)
@@ -197,7 +202,8 @@ def _metadata_parts(script: dict) -> list:
     return [("title", str(script.get("title", ""))),
             ("description", str(script.get("description", ""))),
             ("tags", " | ".join(str(t) for t in (tags if isinstance(tags, list) else [tags]))),
-            ("thumbnail text", str(script.get("thumb_text") or ""))]
+            ("thumbnail text", str(script.get("thumb_text") or "")),
+            ("pinned comment", str(script.get("pinned_comment") or ""))]
 
 
 def _sort_numbers(nums) -> list:
@@ -206,7 +212,7 @@ def _sort_numbers(nums) -> list:
 
 def check_facts(script: dict, facts_text: str, today=None) -> CheckResult:
     """Every number (digits or number words) in the spoken lines, props, title,
-    description, tags and thumbnail text must be on the fact sheet, in a bullet that has not
+    description, tags, thumbnail text and pinned comment must be on the fact sheet, in a bullet that has not
     expired by `today` (a date; None = no expiry); no banned phrases anywhere."""
     if isinstance(today, str):
         today = date.fromisoformat(today)
@@ -246,15 +252,62 @@ def thumb_title_overlap(title: str, thumb: str) -> list:
     return sorted(long_words(title) & long_words(thumb))
 
 
+_HASHTAG_TAIL = re.compile(r"((?:\s+#\S*)+)\s*$")
+_HASHTAG = re.compile(r"#[A-Za-z]+")
+_DOMAIN = re.compile(r"\b[\w-]+\.(?:com|net|org|gov|edu|io|co|ly|me|tv|be|us|info)\b",
+                     re.IGNORECASE)
+
+
+def split_title(title: str) -> tuple:
+    """(text before the trailing hashtags, [trailing hashtags])."""
+    m = _HASHTAG_TAIL.search(" " + title)
+    if not m:
+        return title.strip(), []
+    return (" " + title)[:m.start()].strip(), m.group(1).split()
+
+
+def _title_problems(title: str) -> list:
+    problems = []
+    text, tags = split_title(title)
+    if re.match(r"\s*zorb\b", title, re.IGNORECASE):
+        problems.append("title starts with Zorb; lead with the topic (nobody searches 'Zorb')")
+    if len(text) > MAX_TITLE_TEXT:
+        problems.append(f"title text before the hashtags is {len(text)} chars "
+                        f"(max {MAX_TITLE_TEXT})")
+    if "#" in text or len(tags) != TITLE_HASHTAGS or \
+            not all(_HASHTAG.fullmatch(t) for t in tags):
+        problems.append(f"title must end with exactly {TITLE_HASHTAGS} hashtags of letters "
+                        f"only (e.g. '#money #inflation'), and have none before them")
+    if len(title) > MAX_TITLE:
+        problems.append(f"title is {len(title)} chars (max {MAX_TITLE})")
+    return problems
+
+
+def _pinned_problems(script: dict) -> list:
+    c = script.get("pinned_comment")
+    if not isinstance(c, str) or not c.strip():
+        return ["pinned_comment missing"]
+    c = c.strip()
+    problems = []
+    if len(c) > MAX_PINNED:
+        problems.append(f"pinned_comment is {len(c)} chars (max {MAX_PINNED})")
+    if not c.endswith("?"):
+        problems.append("pinned_comment must be a question ending in '?'")
+    if _URL.search(c) or _DOMAIN.search(c):
+        problems.append("pinned_comment must not contain links")
+    return problems
+
+
 def check_metadata(script: dict) -> CheckResult:
-    """Disclaimer in the description, title <= MAX_TITLE characters, and a
-    thumbnail text that says what the title does not (no shared long word)."""
+    """Disclaimer in the description; title leads with the topic (not "Zorb"), at
+    most MAX_TITLE_TEXT characters before exactly TITLE_HASHTAGS trailing
+    hashtags, MAX_TITLE in all; a thumbnail text that says what the title does
+    not (no shared long word); a pinned_comment that is a short question
+    without links."""
     problems = []
     if DISCLAIMER not in script.get("description", ""):
         problems.append(f"description missing '{DISCLAIMER}'")
-    n = len(script.get("title", ""))
-    if n > MAX_TITLE:
-        problems.append(f"title is {n} chars (max {MAX_TITLE})")
+    problems += _title_problems(str(script.get("title", "")))
     thumb = script.get("thumb_text")
     if not isinstance(thumb, str) or not thumb.strip():
         problems.append("thumb_text missing")
@@ -263,17 +316,35 @@ def check_metadata(script: dict) -> CheckResult:
         if shared:
             problems.append("thumb_text repeats the title on " + ", ".join(shared)
                             + "; the cover must say what the title does not")
+    problems += _pinned_problems(script)
     if problems:
         return CheckResult("metadata", False, "; ".join(problems))
     return CheckResult("metadata", True,
-                       "disclaimer present, title length ok, cover text differs from title")
+                       "disclaimer present, title shape ok, cover text differs from title, "
+                       "pinned comment ok")
+
+
+def check_pacing(script: dict) -> CheckResult:
+    """MIN_BEATS..MAX_BEATS beats of at most MAX_LINE_WORDS words each, so the
+    picture changes every few seconds."""
+    beats = script.get("beats") or []
+    problems = []
+    if not MIN_BEATS <= len(beats) <= MAX_BEATS:
+        problems.append(f"{len(beats)} beats (need {MIN_BEATS}-{MAX_BEATS})")
+    for i, b in enumerate(beats):
+        n = len(str(b.get("line", "")).split())
+        if n > MAX_LINE_WORDS:
+            problems.append(f"beats[{i}] has {n} words (max {MAX_LINE_WORDS})")
+    if problems:
+        return CheckResult("pacing", False, "; ".join(problems))
+    return CheckResult("pacing", True, f"{len(beats)} beats, each <= {MAX_LINE_WORDS} words")
 
 
 def check_variety(script: dict, recent: list) -> CheckResult:
-    title = script["title"].lower()
+    title = split_title(script["title"])[0].lower()     # shared hashtags don't count
     scenes = [b["scene"] for b in script["beats"]]
     for item in recent:
-        ratio = SequenceMatcher(None, title, item["title"].lower()).ratio()
+        ratio = SequenceMatcher(None, title, split_title(item["title"])[0].lower()).ratio()
         if ratio >= TITLE_SIMILARITY_MAX:
             return CheckResult("variety", False,
                                f"title too similar ({ratio:.2f}) to {item['title']!r}")

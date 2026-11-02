@@ -6,6 +6,7 @@ from pipeline.script_schema import load_script, SCENES, EXPRESSIONS
 def _script(**over):
     s = {"topic": "inflation", "title": "T", "description": "D", "tags": ["a"],
          "hook_score": 61, "thumb_text": "PRICES JUMPED?!",
+         "pinned_comment": "What costs more for you?",
          "beats": [{"line": "Hi.", "scene": "shop", "expression": "neutral", "props": {}}]}
     s.update(over)
     return s
@@ -89,8 +90,39 @@ def test_load_script_thumb_expression_optional_but_known(tmp_path):
             load_script(_write(tmp_path, _script(thumb_expression=bad)))
 
 
-def test_sample_script_loads_with_cover_fields():
+def test_load_script_requires_pinned_comment_string(tmp_path):
+    s = _script()
+    del s["pinned_comment"]
+    with pytest.raises(ValueError, match="pinned_comment"):
+        load_script(_write(tmp_path, s))
+    for bad in (5, None, "  ", ["Why?"]):
+        with pytest.raises(ValueError, match="pinned_comment"):
+            load_script(_write(tmp_path, _script(pinned_comment=bad)))
+
+
+def test_load_script_beat_line_at_most_14_words(tmp_path):
+    ok = " ".join(["word"] * 14)
+    beat = {"scene": "shop", "expression": "neutral", "props": {}}
+    assert load_script(_write(tmp_path, _script(beats=[{**beat, "line": ok}])))
+    s = _script(beats=[{**beat, "line": "Hi."}, {**beat, "line": ok + " more"}])
+    with pytest.raises(ValueError, match=r"beats\[1\]\.line.*15 words.*14"):
+        load_script(_write(tmp_path, s))
+
+
+def test_sample_script_follows_the_new_rules():
+    from datetime import date
     from pathlib import Path
+    from pipeline.build import content_checks
+    from pipeline.checks import text_numbers
     root = Path(__file__).resolve().parents[2]
     s = load_script(str(root / "channel/samples/inflation/script.json"))
-    assert s["thumb_text"] == "SNACKS COST MORE?!" and s["thumb_expression"] == "confused"
+    assert s["thumb_text"] and s["thumb_expression"] in EXPRESSIONS
+    assert 8 <= len(s["beats"]) <= 14
+    assert not s["title"].lower().startswith("zorb")
+    assert "will return" not in s["beats"][-1]["line"].lower()
+    assert all("subscribe" not in b["line"].lower() for b in s["beats"])
+    for b in s["beats"]:                         # at most one spoken number per beat
+        assert len(text_numbers(b["line"])) <= 1, b["line"]
+    checks = content_checks(s, root / "channel/facts", None, today=date(2026, 11, 2))
+    bad = [(c.name, c.detail) for c in checks if not c.ok]
+    assert bad == []

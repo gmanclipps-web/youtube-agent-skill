@@ -189,6 +189,13 @@ def test_metadata_numbers_include_thumb_text(tmp_path):
     assert media.metadata_numbers(p, f) == []
 
 
+def test_metadata_numbers_include_pinned_comment(tmp_path):
+    p, f = _meta_script(tmp_path, pinned_comment="Did yours rise 9 percent?")
+    assert media.metadata_numbers(p, f) == ["9"]
+    p, f = _meta_script(tmp_path, pinned_comment="Is 7 percent a lot?")
+    assert media.metadata_numbers(p, f) == []
+
+
 def test_cli_numbers_exit_code(tmp_path, capsys):
     p, f = _meta_script(tmp_path)
     assert media.main(["numbers", str(p), str(f)]) == 0
@@ -441,13 +448,16 @@ def test_metadata_numbers_word_numbers_and_expiry(tmp_path):
 DESC = 'Zorb finds "prices" rise.\n\nEducation, not financial advice.\n\n#Shorts #inflation #money'
 URL = "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-02/inflation.mp4"
 THUMB = URL[:-len("mp4")] + "jpg"
+TITLE = "Why Does $100 Buy Less Every Year? #money #inflation"
+PINNED = "What got more expensive for you this year?"
 
 
 def _payload_setup(tmp_path, ok=True, video=True, thumb=True):
     sp = tmp_path / "script.json"
-    sp.write_text(json.dumps({"topic": "inflation", "title": "Zorb Learns Why $100 Buys Less",
+    sp.write_text(json.dumps({"topic": "inflation", "title": TITLE,
                               "description": DESC, "tags": ["inflation", "Zorb"],
                               "hook_score": 70, "thumb_text": "SNACKS COST MORE?!",
+                              "pinned_comment": PINNED,
                               "beats": [{"line": "Hi.", "scene": "shop",
                                          "expression": "neutral", "props": {}}]}))
     out = tmp_path / "out"
@@ -475,10 +485,10 @@ def test_payload_exact_arguments(tmp_path, capsys):
         "providers": [{"network": "youtube"}], "text": DESC, "media": [URL],
         "videoThumbnailUrl": THUMB,
         "publicationDate": {"dateTime": "2026-11-02T08:00:00", "timezone": "America/New_York"},
-        "autoPublish": True, "draft": False, "descendants": [], "firstCommentText": "",
+        "autoPublish": True, "draft": False, "descendants": [], "firstCommentText": PINNED,
         "hasNotReadNotes": False, "mediaAltText": [], "shortener": False,
         "smartLinkData": {"ids": []},
-        "youtubeData": {"title": "Zorb Learns Why $100 Buys Less", "type": "short",
+        "youtubeData": {"title": TITLE, "type": "short",
                         "privacy": "public", "tags": ["inflation", "Zorb"],
                         "category": "EDUCATION", "madeForKids": False,
                         "isAiGeneratedContent": False}}

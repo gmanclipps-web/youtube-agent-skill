@@ -206,16 +206,29 @@ theirs. If every usable bullet has already been the twist of one of them, skip t
 
 ### 4a. Voice and shape
 
-Copy the shape of `channel/samples/inflation/script.json` (read it now; it passed every check
-when it was published; its facts may have expired since and its hook score (60) is below today's minimum of 65, so copy its shape, not its numbers or its hook).
+Copy the shape of `channel/samples/inflation/script.json` (read it now; it follows every rule
+below; its facts may expire later, so copy its shape, not its numbers or its hook).
+
+The Shorts feed decides in the first second. The winning pattern: say what the video is about
+in the first word, a new picture every 2-4 seconds, one simple metaphor, no intro, no outro.
 
 - Zorb is a small, curious, baffled, funny alien reporting on Earth money. Zorb talks to
   "Earthlings", in short sentences, present tense, no jargon without a one-line explanation.
-- 75-110 spoken words in total (about 30-57 seconds), 6-9 beats, one idea per beat.
+- 75-110 spoken words in total (about 30-57 seconds), **8-14 beats**, one idea per beat.
+  **Each beat's line is at most 14 words** (the build rejects longer lines and any beat count
+  outside 8-14): every beat is a new picture, so short beats keep the picture changing.
+- Beat 1 is content from its first word (the topic or the surprising fact), never a greeting.
 - Structure: **hook** (beat 1) -> **confusion** (Zorb does not get it) -> **one visual
-  metaphor** carried over 2-3 beats -> **twist** (the surprising true fact) -> sign-off.
-- The last beat's line is exactly: `Zorb will return. Earth money remains confusing.`
-  (scene `planet`, expression `smug`, props `{}`).
+  metaphor** carried over 2-3 beats -> **twist** (the surprising true fact) -> **loop line**.
+- **No outro, no sign-off, no "subscribe", no "follow".** The last line must loop back into
+  the first: it ends so that beat 1's line reads as its answer or continuation when the Short
+  replays (e.g. last `So when an Earthling asks where their money went, say:` -> first
+  `Your 100 dollars lost a bag of snacks...`). Reusing beat 1's scene and props for the last
+  beat makes the loop seamless.
+- **Spoken numbers:** at most one number per beat; prefer whole numbers from the sheet
+  ("107 dollars", "7 percent"); never read long decimals aloud ("3,155.02 dollars",
+  "3.7 percent"): put them on screen in a prop instead (e.g. `stock_chart` label `"+3.7%"`)
+  and say it in words ("rose", "jumped").
 - At least 4 distinct scenes, and the scene sequence must not copy any recent video's
   sequence (the build checks this against the last 10 scheduled videos in the logs).
 - Scenes: `shop, price_tag, vault, stock_chart, credit_card, planet, calendar, money_stack`.
@@ -251,8 +264,8 @@ Text props are upper-cased and cut to the lengths above; keep labels short.
 
 ### 4c. Hook (skills/yt-script/SKILL.md)
 
-Write FIVE hook options for beat 1 (each one Zorb's opening line, using the formulas in
-`skills/yt-script/hooks.json`) and score each:
+Write FIVE hook options for beat 1 (each one Zorb's opening line, at most 14 words and at most
+one number, using the formulas in `skills/yt-script/hooks.json`) and score each:
 
 ```bash
 python3 skills/yt-script/hookscore.py --json --hook "<hook option>"
@@ -265,11 +278,15 @@ not get from the tool.
 
 ### 4d. Title, description, tags (skills/yt-package/SKILL.md)
 
-- Title: starts with `Zorb`, at most 60 characters, plays on the topic's `title_seed` in
-  `channel/topics.json`, a concrete number from the sheet if it fits. Write 5 options, run
-  each through `python3 skills/yt-package/title.py --json --title "<title>"`, take the best
-  score. It must not resemble a title from the last 30 days of logs, nor the title of any
-  earlier script of this topic (step 3).
+- Title: **leads with the topic** as a curiosity question or a claim (e.g.
+  `Where Did Your $100 Go? #money #inflation`); **never starts with "Zorb"** (nobody searches
+  that name). At most 50 characters before the hashtags, then **exactly 2 hashtags** from the
+  topic, letters only (e.g. `#money #inflation`), at most 70 characters in all. Play on the
+  topic's `title_seed` in `channel/topics.json`, a concrete number from the sheet if it fits.
+  Write 5 options, run each through `python3 skills/yt-package/title.py --json --title
+  "<title>"`, take the best score. It must not resemble a title from the last 30 days of logs,
+  nor the title of any earlier script of this topic (step 3). The build checks the shape
+  (`metadata`) and every number in it (`facts`).
 - Description: 2-3 plain sentences (what Zorb discovers; name the source organisation of the
   figures), then a blank line, then exactly `Education, not financial advice.`, then a blank
   line, then 3 hashtags on one line, the first being `#Shorts` (e.g.
@@ -289,23 +306,29 @@ not get from the tool.
 
   Pick an option whose output has **no `duplicate` warning** and no `thumb-length` warning;
   if none qualifies, write 3 more. Never put banned phrases or advice in it (hard rule 5).
+- Pinned comment (`pinned_comment`): one short question that invites a reply, posted as the
+  video's first comment (e.g. `What got more expensive for you this year?`). At most 120
+  characters, ends with `?`, no links, no advice; any number in it must come from a
+  non-expired bullet of the sheet (prefer none); banned phrases apply. The build checks this.
 - Cover face (`thumb_expression`): one of `neutral, confused, shocked, aha, smug`, the one
   that fits the cover text (e.g. `confused` for a question, `shocked` for a surprise).
 
 ### 4e. Save and pre-check
 
 Write the script to `/tmp/zorb/TODAY/<topic>/script.json` with the fields
-`topic, title, description, tags, hook_score, thumb_text, thumb_expression, beats` (each beat:
+`topic, title, description, tags, hook_score, thumb_text, thumb_expression, pinned_comment, beats` (each beat:
 `line, scene, expression, props`).
 Then run both checks:
 
 ```bash
-python3 -c "import json,sys; s=json.load(open(sys.argv[1])); print(sum(len(b['line'].split()) for b in s['beats']), len(s['beats']), len({b['scene'] for b in s['beats']}))" /tmp/zorb/TODAY/<topic>/script.json
+python3 -c "import json,sys; s=json.load(open(sys.argv[1])); print(sum(len(b['line'].split()) for b in s['beats']), len(s['beats']), len({b['scene'] for b in s['beats']}), max(len(b['line'].split()) for b in s['beats']))" /tmp/zorb/TODAY/<topic>/script.json
 python3 -m pipeline.media numbers /tmp/zorb/TODAY/<topic>/script.json channel/facts/<topic>.md
 ```
 
-The first must print words 75-110, beats 6-9, distinct scenes >= 4. The second must print `ok`
-(it lists any number, digits or words, in the title, description, tags or `thumb_text` that is
+The first must print words 75-110, beats 8-14, distinct scenes >= 4, longest line <= 14
+words. The second must print `ok`
+(it lists any number, digits or words, in the title, description, tags, `thumb_text` or
+`pinned_comment` that is
 not in a non-expired bullet of the sheet; remove or fix those). Fix the script until both pass; these fixes do not count as rewrites.
 
 Then save a copy: `mkdir -p channel/scripts/TODAY && cp /tmp/zorb/TODAY/<topic>/script.json
@@ -329,7 +352,7 @@ Read `report.json` (`ok`, `checks`, `duration`, `scenes`, `error`, `thumbnail`):
   `"status": "error"`, `"reason"` = the error text) and go to the next topic.
 - `error` is `content checks failed; not voiced` or `technical check failed`: read the failing
   checks' `detail`, rewrite the script to fix exactly that (remove an unknown number, shorten a
-  script that runs over 59 s, change a title too similar to a recent one, reorder scenes...),
+  script that runs over 59 s, split or shorten a beat for `pacing`, change a title too similar to a recent one, reorder scenes...),
   redo 4e and build again (a `metadata` failure saying `thumb_text repeats the title` is fixed
   by new cover words, re-linted as in 4d). At most 2 rewrites; then log it (step L:
   `"status": "skipped"`, `"reason"` = "checks failed: " + the failing checks' `name: detail`, joined by "; ") and go to
@@ -405,7 +428,8 @@ python3 -m pipeline.media payload /tmp/zorb/TODAY/<topic>/script.json SLOT_DATE 
 It refuses (exit non-zero, message on stderr) unless `report.json` says `"ok": true` and
 `video.mp4` and `thumbnail.jpg` sit next to it, the slot date is a slot as printed by `slots`,
 the URL is this topic's media URL and `THUMB_URL` is the matching `.jpg` URL (same day and
-topic). The cover goes into `info` as `videoThumbnailUrl`. If it refuses, do not schedule:
+topic). The cover goes into `info` as `videoThumbnailUrl`, and the script's `pinned_comment`
+as `firstCommentText` (the post's first comment). If it refuses, do not schedule:
 log it (step L: `"status": "error"`, `"reason"` = the printed error) and go to the next topic.
 
 Otherwise it prints one JSON object with exactly three keys: `blogId`, `date` and `info`.
