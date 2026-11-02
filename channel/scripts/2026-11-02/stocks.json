@@ -1,0 +1,121 @@
+{
+  "topic": "stocks",
+  "title": "Why Do Stocks Lose Money 1 Year in 3? #stocks #money",
+  "description": "Zorb discovers stocks: tiny slices of real companies that can win big over long stretches but also lose money. Figures come from the U.S. Securities and Exchange Commission's Investor.gov guide to stocks.\n\nEducation, not financial advice.\n\n#Shorts #stocks #investing",
+  "tags": [
+    "stocks",
+    "stocks explained",
+    "what is a stock",
+    "stock market basics",
+    "investing basics",
+    "personal finance",
+    "money basics",
+    "Zorb",
+    "cartoon alien"
+  ],
+  "hook_score": 71,
+  "thumb_text": "OWN A COMPANY?",
+  "thumb_expression": "shocked",
+  "pinned_comment": "Which company would you want a tiny slice of?",
+  "beats": [
+    {
+      "line": "Your stocks lose money about 1 year in 3. Why hold them 15 years?",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "down",
+        "label": "1 IN 3"
+      }
+    },
+    {
+      "line": "Zorb looked closer. A stock is a tiny slice of a real company.",
+      "scene": "shop",
+      "expression": "confused",
+      "props": {
+        "item": "COMPANY",
+        "price": "SLICE"
+      }
+    },
+    {
+      "line": "Companies sell those slices to raise money.",
+      "scene": "money_stack",
+      "expression": "neutral",
+      "props": {}
+    },
+    {
+      "line": "They pay off debt, build things and launch new products.",
+      "scene": "vault",
+      "expression": "aha",
+      "props": {
+        "label": "NEW STUFF",
+        "open": true
+      }
+    },
+    {
+      "line": "Earthlings call the slices equities. Fancy word, same slice.",
+      "scene": "planet",
+      "expression": "smug",
+      "props": {
+        "label": "EQUITIES"
+      }
+    },
+    {
+      "line": "But stock prices move down as well as up.",
+      "scene": "stock_chart",
+      "expression": "shocked",
+      "props": {
+        "trend": "down",
+        "label": "DOWN"
+      }
+    },
+    {
+      "line": "You can lose real money.",
+      "scene": "money_stack",
+      "expression": "confused",
+      "props": {}
+    },
+    {
+      "line": "If the company goes bankrupt, bondholders get paid first.",
+      "scene": "vault",
+      "expression": "shocked",
+      "props": {
+        "label": "BANKRUPT",
+        "open": false
+      }
+    },
+    {
+      "line": "Common stockholders go last. They may get nothing.",
+      "scene": "shop",
+      "expression": "confused",
+      "props": {
+        "item": "STOCKHOLDER",
+        "price": "NOTHING"
+      }
+    },
+    {
+      "line": "So why do Earthlings keep holding on?",
+      "scene": "planet",
+      "expression": "confused",
+      "props": {
+        "label": "WHY?"
+      }
+    },
+    {
+      "line": "Investors who stuck it out for long periods generally got rewarded.",
+      "scene": "calendar",
+      "expression": "aha",
+      "props": {
+        "years": 15
+      }
+    },
+    {
+      "line": "But the losing years keep coming back.",
+      "scene": "stock_chart",
+      "expression": "neutral",
+      "props": {
+        "trend": "down",
+        "label": "AGAIN"
+      }
+    }
+  ]
+}

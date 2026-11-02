@@ -1,0 +1,58 @@
+[
+  {
+    "topic": "stocks",
+    "title": "Why Do Stocks Lose Money 1 Year in 3? #stocks #money",
+    "scenes": [
+      "stock_chart",
+      "shop",
+      "money_stack",
+      "vault",
+      "planet",
+      "stock_chart",
+      "money_stack",
+      "vault",
+      "shop",
+      "planet",
+      "calendar",
+      "stock_chart"
+    ],
+    "hook_score": 71,
+    "checks": [
+      {
+        "name": "hook",
+        "ok": true,
+        "detail": "hook score 71 >= 65"
+      },
+      {
+        "name": "metadata",
+        "ok": true,
+        "detail": "disclaimer present, title shape ok, cover text differs from title, pinned comment ok"
+      },
+      {
+        "name": "pacing",
+        "ok": true,
+        "detail": "12 beats, each <= 14 words"
+      },
+      {
+        "name": "facts",
+        "ok": true,
+        "detail": "all numbers on fact sheet, no banned phrases"
+      },
+      {
+        "name": "variety",
+        "ok": true,
+        "detail": "title distinct from 3 videos (30 days), scenes distinct from last 3"
+      },
+      {
+        "name": "technical",
+        "ok": true,
+        "detail": "1080x1920, 39.84s, audio present, captions match speech"
+      }
+    ],
+    "status": "scheduled",
+    "planner_url": "https://app.metricool.com/planner/calendar?blogId=7783344&openWithPostUuid=1002808472375217171",
+    "media_url": "https://raw.githubusercontent.com/gmanclipps-web/youtube-agent-skill/media/media/2026-11-02/stocks.mp4",
+    "reason": null,
+    "publish_at": "2026-11-02T08:00:00-05:00"
+  }
+]
